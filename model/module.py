@@ -2,10 +2,14 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+import sys
 from typing import Tuple
+from pathlib import Path
+
+sys.path.append(str(Path(__file__).parent))
 
 from attention import scaled_dot_product_attention_gqa
-from arg import ModelArgs
+from model_args import ModelArgs
 
 
 def make_norm(

@@ -1,15 +1,19 @@
-import json
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+import sys
+import json
 from pathlib import Path
+from typing import Callable
 
-from arg import ModelArgs
-from module import EncoderBlock, RMSNorm
+sys.path.append(str(Path(__file__).parent))
+
+from model_args import ModelArgs
+from module import EncoderBlock, make_norm
 
 
-class Llama2ForCausalLM(nn.Module):
+class CausalLM(nn.Module):
     def __init__(self, args: ModelArgs):
         super().__init__()
         self.args = args
@@ -29,7 +33,7 @@ class Llama2ForCausalLM(nn.Module):
 
         self.tok_embeddings = nn.Embedding(self.n_vocab, self.dim)
         self.layers = nn.ModuleList([EncoderBlock(args) for _ in range(self.n_layers)])
-        self.norm = RMSNorm(self.dim, eps=args.norm_eps)
+        self.norm = make_norm(**args.model_dump())
         self.output = nn.Linear(self.dim, self.n_vocab, bias=False)
 
         self.start_index = 0
@@ -43,27 +47,30 @@ class Llama2ForCausalLM(nn.Module):
             tokens = tokens.unsqueeze(0)
         _, L = tokens.shape
 
-        # [B, L] --> [B, L, D]
-        h = self.tok_embeddings(tokens)
-        # [B, L, D] --> [B, L, D]
+        h = self.tok_embeddings(tokens)  # [B, L] --> [B, L, D]
         for layer in self.layers:
-            h = layer(h, self.start_index)
-        # [B, L, D] --> [B, L, D]
-        h = self.norm(h)
-        # [B, L, D] --> [B, L, n_vocab]
-        logits = self.output(h)
+            h = layer(h, self.start_index)  # [B, L, D] --> [B, L, D]
+        h = self.norm(h)  # [B, L, D] --> [B, L, D]
+        logits = self.output(h)  # [B, L, D] --> [B, L, n_vocab]
 
         self.start_index += L
-
         return logits
 
     @staticmethod
-    def from_pretrained(model_fn: Path, model_args_fn: Path = None, strict=True):
+    def from_pretrained(
+        model_fn: Path,
+        model_args: Path | ModelArgs,
+        strict=True,
+        convert_state_dict_fun: Callable = None,
+    ) -> "CausalLM":
         state_dict = torch.load(model_fn, map_location="cpu")
-        args = ModelArgs()
-        if model_args_fn is not None:
-            args = ModelArgs(**json.load(model_args_fn.open()))
-        model = Llama2ForCausalLM(args)
+        if convert_state_dict_fun is not None:
+            state_dict = convert_state_dict_fun(state_dict)
+        try:
+            args = ModelArgs(**json.load(model_args.open()))
+        except:
+            args = model_args
+        model = CausalLM(args)
         model.load_state_dict(state_dict, strict=strict)
         return model
 
@@ -71,23 +78,20 @@ class Llama2ForCausalLM(nn.Module):
 if __name__ == "__main__":
 
     model_args = ModelArgs(
-        n_vocab=1234,
-        dim=64,
-        n_layers=4,
+        n_vocab=345,
+        dim=128,
+        n_layers=6,
         n_heads=8,
         n_kv_heads=None,
+        ffn_hidden_dim=256,
         norm_eps=1e-5,
-        ffn_hidden_dim=128,
+        norm_type="rmsnorm",
+        norm_with_affine=True,
         max_batch_size=1,
-        max_seq_len=256,
+        max_seq_len=512,
     )
 
-    model = Llama2ForCausalLM(model_args)
-    o1 = model(torch.tensor([1, 2, 3]))
-    o2 = model(torch.tensor([5, 6]))
-    o3 = model(torch.tensor([10]))
-    model.reset()
-    o3 = model(torch.tensor([10]))
-    with open("./temp/llama2-7B.txt", "w") as f:
+    model = CausalLM(model_args)
+    with open("./temp/llama2-dummy.txt", "w") as f:
         for k, v in model.state_dict().items():
             f.write(f"{k}: {[*v.shape]}\n")

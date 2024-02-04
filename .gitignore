@@ -3,5 +3,7 @@
 .DS_Store
 
 temp
+checkpoints/*
+!checkpoints/.gitkeep
 
 *pyc
