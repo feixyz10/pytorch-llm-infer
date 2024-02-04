@@ -35,7 +35,10 @@ def scaled_dot_product_attention_gqa(
 
     if is_causal and attn_mask is None:
         mask_shape = (*query.shape[:-2], L, S)
-        attn_mask = torch.tril(torch.ones(mask_shape, dtype=torch.bool), diagonal=S - L)
+        attn_mask = torch.tril(
+            torch.ones(mask_shape, dtype=torch.bool, device=query.device),
+            diagonal=S - L,
+        )
 
     if n_heads == n_kv_heads:
         return F.scaled_dot_product_attention(
@@ -105,14 +108,14 @@ if __name__ == "__main__":
         assert torch.allclose(o1, o2)
 
     ## multi-head attention
-    q = torch.randn(1, 4, 3, 5)  # [B, n_heads, L, d_head]
-    k = torch.randn(1, 4, 5, 5)  # [B, n_kv_heads, S, d_head]
-    v = torch.eye(5).unsqueeze(0).unsqueeze(0).repeat(1, k.shape[1], 1, 1)
+    q = torch.randn(1, 4, 4, 10)  # [B, n_heads, L, d_head]
+    k = torch.randn(1, 4, 10, 10)  # [B, n_kv_heads, S, d_head]
+    v = torch.eye(10).unsqueeze(0).unsqueeze(0).repeat(1, k.shape[1], 1, 1)
     test1(q, k, v)
 
     ## group query attention, n_heads != n_kv_heads
-    k = torch.randn(1, 2, 5, 5)
-    v = torch.eye(5).unsqueeze(0).unsqueeze(0).repeat(1, k.shape[1], 1, 1)
+    k = torch.randn(1, 2, 10, 10)
+    v = torch.eye(10).unsqueeze(0).unsqueeze(0).repeat(1, k.shape[1], 1, 1)
     test1(q, k, v)
 
     def test2(q, k, v):
@@ -122,7 +125,7 @@ if __name__ == "__main__":
         o2 = scaled_dot_product_attention_gqa(q, k, v, is_casual=False)
         assert torch.allclose(o1, o2)
 
-    q = torch.randn(1, 4, 1, 5)
+    q = torch.randn(1, 4, 1, 10)
     test2(q, k, v)
-    q = torch.randn(1, 2, 1, 5)
+    q = torch.randn(1, 2, 1, 10)
     test2(q, k, v)

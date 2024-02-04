@@ -5,6 +5,14 @@ from collections import OrderedDict
 from model.model_args import ModelArgs
 
 
+def get_device() -> torch.device:
+    if torch.cuda.is_available():
+        return torch.device("cuda")
+    if torch.backends.mps.is_available():
+        return torch.device("mps")
+    return torch.device("cpu")
+
+
 def convert_state_dict_for_llama2(state_dict: OrderedDict) -> OrderedDict:
     del state_dict["rope.freqs"]
     return state_dict
@@ -77,7 +85,6 @@ MODEL_ARGS_MAP = {
         ffn_hidden_dim=11008,
         norm_eps=1e-5,
         norm_type="rmsnorm",
-        norm_with_affine=True,
         max_batch_size=1,
         max_seq_len=4096,
     ),
@@ -90,7 +97,6 @@ MODEL_ARGS_MAP = {
         ffn_hidden_dim=11008,
         norm_eps=1e-5,
         norm_type="rmsnorm",
-        norm_with_affine=True,
         max_batch_size=1,
         max_seq_len=4096,
     ),
@@ -104,6 +110,18 @@ MODEL_ARGS_MAP = {
         norm_type="default",
         norm_with_affine=False,
         ffn_hidden_dim=8192,
+        max_batch_size=1,
+        max_seq_len=2048,
+    ),
+    "phi-2": ModelArgs(
+        n_vocab=51200,
+        dim=2560,
+        n_layers=32,
+        n_heads=32,
+        n_kv_heads=None,
+        ffn_hidden_dim=10240,
+        norm_eps=1e-5,
+        norm_type="rmsnorm",
         max_batch_size=1,
         max_seq_len=2048,
     ),

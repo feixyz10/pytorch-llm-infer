@@ -64,8 +64,8 @@ class Pipeline(nn.Module):
         """
         logits = logits[0]
 
-        if config.do_sample == False or config.temperature <= 0.01 or config.top_k == 1:
-            return self.tokenizer.DecodeIds(logits.argmax(dim=-1).tolist()[0])
+        if config.do_sample == False or config.temperature <= 0.01 or config.top_k <= 1:
+            return logits.argmax(dim=-1).item()
 
         logits = logits / config.temperature
         probs = nn.functional.softmax(logits, dim=-1)
@@ -81,7 +81,7 @@ class Pipeline(nn.Module):
         model_name: str = None,
         strict=True,
     ) -> "Pipeline":
-        assert model_fn.suffix in [".pth", ".pt", ".bin"]
+        assert model_fn.suffix in [".pth", ".bin", ".safetensors"]
         assert tokenizer_fn.suffix == ".model"
 
         if model_name is None:
@@ -102,10 +102,27 @@ class Pipeline(nn.Module):
 
 
 if __name__ == "__main__":
+    from helper import get_device
 
+    gen_config = GenerationConfig(
+        max_prompt_length=512,
+        do_sample=True,
+        temperature=1.0,
+        top_k=1,
+        top_p=0.9,
+        repetition_penalty=1.0,
+        verbose=True,
+    )
+
+    device = get_device()
     # model_name = "chinese-alpaca-2-1.3b"
     model_name = "chinese-llama-2-1.3b"
     model_fn = Path() / f"checkpoints/{model_name}/pytorch_model.bin"
     tokenizer_fn = Path() / f"checkpoints/{model_name}/tokenizer.model"
     pipeline = Pipeline.from_pretrained(model_fn, tokenizer_fn)
-    output = pipeline.generate("Long long ago, there was a ")
+    prompts = [
+        "很久很久以前有一个小男孩，他",
+        "Long long ago, there was a little boy, he",
+    ]
+    output = pipeline.generate(prompts[0], gen_config, device=device)
+    print(output)
