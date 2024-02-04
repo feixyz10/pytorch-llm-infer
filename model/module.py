@@ -38,22 +38,22 @@ class EncoderBlock(nn.Module):
         )
         self.ffn_hidden_dim = args.ffn_hidden_dim
 
-        self.attention = SelfAttention(
+        self.self_attn = SelfAttention(
             self.dim,
             self.n_heads,
             self.n_kv_heads,
             args.max_batch_size,
             args.max_seq_len,
         )
-        self.feed_forward = FeedForward(self.dim, self.ffn_hidden_dim)
-        self.attention_norm = make_norm(**args.model_dump())
-        self.feed_forward_norm = make_norm(**args.model_dump())
+        self.mlp = FeedForward(self.dim, self.ffn_hidden_dim)
+        self.input_layernorm = make_norm(**args.model_dump())
+        self.post_attention_layernorm = make_norm(**args.model_dump())
 
     def forward(self, x: torch.Tensor, start_index: int) -> torch.Tensor:
         # [B, L, D] + [B, L, D] --> [B, L, D]
-        x = x + self.attention(self.attention_norm(x), start_index)
+        x = x + self.self_attn(self.input_layernorm(x), start_index)
         # [B, L, D] + [B, L, D] --> [B, L, D]
-        x = x + self.feed_forward(self.feed_forward_norm(x))
+        x = x + self.mlp(self.post_attention_layernorm(x))
         return x
 
 
@@ -71,10 +71,10 @@ class SelfAttention(nn.Module):
         self.d, self.n_heads, self.n_kv_heads = dim, n_heads, n_kv_heads
         self.d_head = dim // n_heads
 
-        self.wq = nn.Linear(self.d, self.n_heads * self.d_head, bias=False)
-        self.wk = nn.Linear(self.d, self.n_kv_heads * self.d_head, bias=False)
-        self.wv = nn.Linear(self.d, self.n_kv_heads * self.d_head, bias=False)
-        self.wo = nn.Linear(self.n_heads * self.d_head, self.d, bias=False)
+        self.q_proj = nn.Linear(self.d, self.n_heads * self.d_head, bias=False)
+        self.k_proj = nn.Linear(self.d, self.n_kv_heads * self.d_head, bias=False)
+        self.v_proj = nn.Linear(self.d, self.n_kv_heads * self.d_head, bias=False)
+        self.o_proj = nn.Linear(self.n_heads * self.d_head, self.d, bias=False)
 
         self.kv_cache = KVCache(
             max_batch_size=max_batch_size,
@@ -91,10 +91,10 @@ class SelfAttention(nn.Module):
             self.kv_cache.reset()
 
         # [B, L, D] --> [B, L, D]
-        q: torch.Tensor = self.wq(x)
+        q: torch.Tensor = self.q_proj(x)
         # [B, L, D] --> [B, L, D_kv], D_kv may smaller than D
-        k: torch.Tensor = self.wk(x)
-        v: torch.Tensor = self.wv(x)
+        k: torch.Tensor = self.k_proj(x)
+        v: torch.Tensor = self.v_proj(x)
 
         # [B, L, D] --> [B, L, n_heads, d_head]
         q = q.view(batch_size, seq_len, self.n_heads, self.d_head)
@@ -123,7 +123,7 @@ class SelfAttention(nn.Module):
         output = output.permute(0, 2, 1, 3).reshape(batch_size, seq_len, -1)
 
         # [B, L, D] --> [B, L, D]
-        return self.wo(output)
+        return self.o_proj(output)
 
 
 class FeedForward(nn.Module):
@@ -131,15 +131,15 @@ class FeedForward(nn.Module):
         super().__init__()
         self.dim, self.hidden_dim = dim, ffn_hidden_dim
 
-        self.w1 = nn.Linear(self.dim, self.hidden_dim, bias=False)
-        self.w2 = nn.Linear(self.hidden_dim, self.dim, bias=False)
-        self.w3 = nn.Linear(self.dim, self.hidden_dim, bias=False)
+        self.gate_proj = nn.Linear(self.dim, self.hidden_dim, bias=False)
+        self.up_proj = nn.Linear(self.dim, self.hidden_dim, bias=False)
+        self.down_proj = nn.Linear(self.hidden_dim, self.dim, bias=False)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         # [B, L, D] --> [B, L, hD]
-        x1, x2 = F.silu(self.w1(x)), self.w3(x)
+        x1, x2 = F.silu(self.gate_proj(x)), self.up_proj(x)
         # [B, L, hD] --> [B, L, D]
-        return self.w2(x1 * x2)
+        return self.down_proj(x1 * x2)
 
 
 class RMSNorm(nn.Module):

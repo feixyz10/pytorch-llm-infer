@@ -33,10 +33,18 @@ class CausalLM(nn.Module):
         self.max_batch_size = args.max_batch_size
         self.max_seq_len = args.max_seq_len
 
-        self.tok_embeddings = nn.Embedding(self.n_vocab, self.dim)
-        self.layers = nn.ModuleList([EncoderBlock(args) for _ in range(self.n_layers)])
-        self.norm = make_norm(**args.model_dump())
-        self.output = nn.Linear(self.dim, self.n_vocab, bias=False)
+        self.model = nn.ModuleDict(
+            OrderedDict(
+                {
+                    "embed_tokens": nn.Embedding(self.n_vocab, self.dim),
+                    "layers": nn.ModuleList(
+                        [EncoderBlock(args) for _ in range(self.n_layers)]
+                    ),
+                    "norm": make_norm(**args.model_dump()),
+                }
+            )
+        )
+        self.lm_head = nn.Linear(self.dim, self.n_vocab, bias=False)
 
         self.start_index = 0
 
@@ -49,11 +57,12 @@ class CausalLM(nn.Module):
             tokens = tokens.unsqueeze(0)
         _, L = tokens.shape
 
-        h = self.tok_embeddings(tokens)  # [B, L] --> [B, L, D]
-        for layer in self.layers:
+        h = self.model["embed_tokens"](tokens)  # [B, L] --> [B, L, D]
+        for layer in self.model["layers"]:
             h = layer(h, self.start_index)  # [B, L, D] --> [B, L, D]
-        h = self.norm(h)  # [B, L, D] --> [B, L, D]
-        logits = self.output(h)  # [B, L, D] --> [B, L, n_vocab]
+        h = self.model["norm"](h)  # [B, L, D] --> [B, L, D]
+
+        logits = self.lm_head(h)
 
         self.start_index += L
         return logits

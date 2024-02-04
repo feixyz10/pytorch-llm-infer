@@ -124,5 +124,5 @@ if __name__ == "__main__":
         "很久很久以前有一个小男孩，他",
         "Long long ago, there was a little boy, he",
     ]
-    output = pipeline.generate(prompts[0], gen_config, device=device)
+    output = pipeline.generate(prompts[1], gen_config, device=device)
     print(output)
