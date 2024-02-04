@@ -3,6 +3,7 @@ import torch.nn as nn
 
 from pathlib import Path
 from pydantic import BaseModel
+from typing import List
 
 from model.causal_model import CausalLM
 from sentencepiece import SentencePieceProcessor
@@ -76,16 +77,15 @@ class Pipeline(nn.Module):
 
     @staticmethod
     def from_pretrained(
-        model_fn: Path,
-        tokenizer_fn: Path,
+        model_fn: Path | List[Path],
+        tokenizer_fn: Path = None,
         model_name: str = None,
         strict=True,
     ) -> "Pipeline":
-        assert model_fn.suffix in [".pth", ".bin", ".safetensors"]
-        assert tokenizer_fn.suffix == ".model"
-
+        if isinstance(model_fn, Path):
+            model_fn = [model_fn]
         if model_name is None:
-            model_name = model_fn.parent.name
+            model_name = model_fn[0].parent.name
 
         tokenizer = SentencePieceProcessor()
         tokenizer.Load(str(tokenizer_fn))
@@ -101,8 +101,12 @@ class Pipeline(nn.Module):
         return Pipeline(model, tokenizer)
 
 
+def preprocess_prompt(prompt: str):
+    return f"<|system|>\nYou are a chatbot who can help code!</s>\n<|user|>\n{prompt}</s>\n<|assistant|>\n"
+
+
 if __name__ == "__main__":
-    from helper import get_device
+    from helper import get_device, get_model_filenames
 
     gen_config = GenerationConfig(
         max_prompt_length=512,
@@ -115,14 +119,13 @@ if __name__ == "__main__":
     )
 
     device = get_device()
-    # model_name = "chinese-alpaca-2-1.3b"
-    model_name = "chinese-llama-2-1.3b"
-    model_fn = Path() / f"checkpoints/{model_name}/pytorch_model.bin"
+    model_name = "TinyLlama-1.1B-Chat-v1.0"
+    model_fn = get_model_filenames(Path() / f"checkpoints/{model_name}")
     tokenizer_fn = Path() / f"checkpoints/{model_name}/tokenizer.model"
     pipeline = Pipeline.from_pretrained(model_fn, tokenizer_fn)
     prompts = [
-        "很久很久以前有一个小男孩，他",
-        "Long long ago, there was a little boy, he",
+        "Write me a function to calculate the first 10 digits of the fibonacci sequence in Python and print it out to the CLI.",
     ]
-    output = pipeline.generate(prompts[1], gen_config, device=device)
+    prompts = [preprocess_prompt(p) for p in prompts]
+    output = pipeline.generate(prompts[0], gen_config, device=device)
     print(output)

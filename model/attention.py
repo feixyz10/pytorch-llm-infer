@@ -51,7 +51,7 @@ def scaled_dot_product_attention_gqa(
             scale=scale,
         )
 
-    query = query.view(*query.shape[:-3], n_heads // n_kv_heads, n_kv_heads, L, -1)
+    query = query.view(*query.shape[:-3], n_kv_heads, n_heads // n_kv_heads, L, -1)
     query = query.transpose(-3, -4).contiguous()
     key = key.view(*key.shape[:-3], 1, n_kv_heads, S, -1)
     value = value.view(*value.shape[:-3], 1, n_kv_heads, S, -1)
@@ -108,8 +108,8 @@ if __name__ == "__main__":
         assert torch.allclose(o1, o2)
 
     ## multi-head attention
-    q = torch.randn(1, 4, 4, 10)  # [B, n_heads, L, d_head]
-    k = torch.randn(1, 4, 10, 10)  # [B, n_kv_heads, S, d_head]
+    q = torch.randn(1, 6, 4, 10)  # [B, n_heads, L, d_head]
+    k = torch.randn(1, 6, 10, 10)  # [B, n_kv_heads, S, d_head]
     v = torch.eye(10).unsqueeze(0).unsqueeze(0).repeat(1, k.shape[1], 1, 1)
     test1(q, k, v)
 
@@ -125,7 +125,7 @@ if __name__ == "__main__":
         o2 = scaled_dot_product_attention_gqa(q, k, v, is_casual=False)
         assert torch.allclose(o1, o2)
 
-    q = torch.randn(1, 4, 1, 10)
+    q = torch.randn(1, 6, 1, 10)
     test2(q, k, v)
     q = torch.randn(1, 2, 1, 10)
     test2(q, k, v)

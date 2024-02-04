@@ -1,6 +1,8 @@
 import torch
 
+from pathlib import Path
 from collections import OrderedDict
+from typing import List
 
 from model.model_args import ModelArgs
 
@@ -20,6 +22,17 @@ def convert_state_dict_for_llama2(state_dict: OrderedDict) -> OrderedDict:
             continue
         state_dict_new[k] = v
     return state_dict_new
+
+
+def get_model_filenames(model_dir: Path) -> List[Path]:
+    assert model_dir.is_dir()
+    if len(list(model_dir.glob("*.safetensors"))) > 0:
+        return list(model_dir.glob("*.safetensors"))
+    if len(list(model_dir.glob("*.pth"))) > 0:
+        return list(model_dir.glob("*.pth"))
+    if len(list(model_dir.glob("*.bin"))) > 0:
+        return list(model_dir.glob("*.bin"))
+    raise ValueError(f"Cannot find model files in {model_dir}")
 
 
 def convert_state_dict_for_olmo(state_dict: OrderedDict):
@@ -56,6 +69,18 @@ def convert_state_dict_for_olmo(state_dict: OrderedDict):
 
 
 MODEL_ARGS_MAP = {
+    "TinyLlama-1.1B-Chat-v1.0": ModelArgs(
+        n_vocab=32000,
+        dim=2048,
+        n_layers=22,
+        n_heads=32,
+        n_kv_heads=4,
+        ffn_hidden_dim=5632,
+        norm_eps=1e-5,
+        norm_type="rmsnorm",
+        max_batch_size=1,
+        max_seq_len=2048,
+    ),
     "llama-7b": ModelArgs(
         n_vocab=50304,
         dim=4096,
@@ -110,8 +135,9 @@ MODEL_ARGS_MAP = {
 MODEL_ARGS_MAP["chinese-llama-2-1.3b"] = MODEL_ARGS_MAP["chinese-alpaca-2-1.3b"]
 
 CONVERT_STATE_DICT_FUN_MAP = {
+    "TinyLlama-1.1B-Chat-v1.0": convert_state_dict_for_llama2,
     "llama-7b": convert_state_dict_for_llama2,
-    "chinese-alpaca-2-1.3b": convert_state_dict_for_llama2,
     "OLMo-1B": convert_state_dict_for_olmo,
+    "chinese-alpaca-2-1.3b": convert_state_dict_for_llama2,
     "chinese-llama-2-1.3b": convert_state_dict_for_llama2,
 }

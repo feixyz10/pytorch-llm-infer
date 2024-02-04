@@ -6,7 +6,7 @@ import sys
 import json
 import safetensors.torch
 from pathlib import Path
-from typing import Callable
+from typing import Callable, List
 from collections import OrderedDict
 
 sys.path.append(str(Path(__file__).parent))
@@ -69,12 +69,17 @@ class CausalLM(nn.Module):
 
     @staticmethod
     def from_pretrained(
-        model_fn: Path,
+        model_fns: Path | List[Path],
         model_args: Path | ModelArgs,
         strict=True,
         convert_state_dict_fun: Callable = None,
     ) -> "CausalLM":
-        state_dict = _load_state_dict(model_fn)
+        if isinstance(model_fns, Path):
+            model_fns = [model_fns]
+        assert all([fn.is_file() for fn in model_fns])
+        state_dict = OrderedDict()
+        for fn in model_fns:
+            state_dict.update(_load_state_dict(fn))
         if convert_state_dict_fun is not None:
             state_dict = convert_state_dict_fun(state_dict)
         try:
@@ -104,18 +109,18 @@ def _print_state_dict(fn: Path, write_fn=None):
 
 if __name__ == "__main__":
 
-    # model_name = "phi-2"
-    # model_dir = Path() / f"checkpoints/{model_name}"
-    # model_fn_candidates = (
-    #     list(model_dir.glob("*.bin"))
-    #     + list(model_dir.glob("*.pth"))
-    #     + list(model_dir.glob("*.safetensors"))
-    # )
-    # assert len(model_fn_candidates) >= 1
-    # model_fn_candidates = sorted(model_fn_candidates)
-    # with open(f"./temp/{model_name}.txt", "w") as f:
-    #     for model_fn in model_fn_candidates:
-    #         _print_state_dict(model_fn, f)
+    model_name = "TinyLlama-1.1B-Chat-v1.0"
+    model_dir = Path() / f"checkpoints/{model_name}"
+    model_fn_candidates = (
+        list(model_dir.glob("*.bin"))
+        + list(model_dir.glob("*.pth"))
+        + list(model_dir.glob("*.safetensors"))
+    )
+    assert len(model_fn_candidates) >= 1
+    model_fn_candidates = sorted(model_fn_candidates)
+    with open(f"./temp/{model_name}.txt", "w") as f:
+        for model_fn in model_fn_candidates:
+            _print_state_dict(model_fn, f)
 
     model_args = ModelArgs(
         n_vocab=345,
