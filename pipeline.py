@@ -6,58 +6,103 @@ from pydantic import BaseModel
 from typing import List
 
 from model.causal_model import CausalLM
-from sentencepiece import SentencePieceProcessor
-from helper import MODEL_ARGS_MAP, CONVERT_STATE_DICT_FUN_MAP
+
+from transformers import AutoTokenizer
+from helper import get_model_args, get_state_dict_convert_fun, get_prompt_preprocess_fun
 
 
 class GenerationConfig(BaseModel):
     max_prompt_length: int = 512  # max length of prompt, truncated if longer
+    max_length: int = 256
     do_sample: bool = True  # sampling next token if True, otherwise greedy search
     temperature: float = 1.0
     top_k: int = 3
     top_p: float = 1.0
     repetition_penalty: float = 1.0
     verbose: bool = True
+    stream: bool = True
 
 
 class Pipeline(nn.Module):
-    def __init__(self, model: CausalLM, tokenizer: SentencePieceProcessor):
+    def __init__(
+        self, model: CausalLM, tokenizer: AutoTokenizer, model_name: str = None
+    ):
         super().__init__()
-        self.model = model
-        self.tokenizer = tokenizer
+        self.model: CausalLM = model
+        self.tokenizer: AutoTokenizer = tokenizer
+        self.model_name: str = model_name
 
     def generate(
-        self, prompts: str, config: GenerationConfig = None, device: torch.device = None
-    ) -> torch.Tensor:
+        self,
+        prompts: str,
+        config: GenerationConfig = None,
+        device: torch.device = None,
+    ) -> str:
         """Now only support batch_size == 1"""
         if config is None:
             config = GenerationConfig()
 
-        token_ids = self.tokenizer.Encode(prompts)
-        if len(token_ids) > config.max_prompt_length:
-            token_ids = token_ids[-config.max_prompt_length :]
-        token_ids = torch.tensor(token_ids, dtype=torch.int64).to(device)
+        if get_prompt_preprocess_fun(self.model_name) is not None:
+            prompts = get_prompt_preprocess_fun(self.model_name)(prompts)
+        input_token_ids = self.tokenizer.encode(prompts)
+        if len(input_token_ids) > config.max_prompt_length:
+            input_token_ids = input_token_ids[-config.max_prompt_length :]
+        input_token_len = len(input_token_ids)
+        input_token_ids = torch.tensor(input_token_ids, dtype=torch.int64).to(device)
 
         self.model.to(device)
         self.model.eval()
         self.model.reset()
-        outputs = "assistant: "
-        print(f"user: {prompts}", end="\n")
+        if config.verbose:
+            print(f"{prompts}", end="")
+        output_token_ids = []
+        outputs = ""
         with torch.inference_mode():
-            next_token_id = self._generate_next(token_ids, config)
-            while next_token_id != self.tokenizer.eos_id():
-                outputs += self.tokenizer.Decode([next_token_id])
-                print(outputs, end="\r")
-                token_ids = torch.tensor([next_token_id], dtype=torch.int64).to(device)
-                next_token_id = self._generate_next(token_ids, config)
-
+            next_token_id = self._generate_next_token(input_token_ids, config)
+            output_token_ids.append(next_token_id)
+            while True:
+                if next_token_id == self.tokenizer.eos_token_id:
+                    break
+                outputs = self.tokenizer.decode(output_token_ids)
+                if config.verbose and config.stream:
+                    print(self.tokenizer.decode(output_token_ids), end="\r")
+                if input_token_len + len(output_token_ids) >= config.max_length:
+                    break
+                token_id = torch.tensor([next_token_id], dtype=torch.int64).to(device)
+                next_token_id = self._generate_next_token(token_id, config)
+                output_token_ids.append(next_token_id)
+        if config.verbose and config.stream:
+            print("")
         return outputs
 
-    def _generate_next(self, token_ids: torch.Tensor, config: GenerationConfig) -> int:
+    def _generate_next_token(
+        self, token_ids: torch.Tensor, config: GenerationConfig
+    ) -> int:
         with torch.inference_mode():
             logits = self.model(token_ids)[:, -1, :]
             next_token_id = self._sample(logits, config)
             return next_token_id
+
+    @staticmethod
+    def from_pretrained(
+        model_dir: Path,
+        strict=True,
+    ) -> "Pipeline":
+        assert model_dir.is_dir()
+        model_name = model_dir.name
+        model_fn = get_model_state_dict_filenames(model_dir)
+        tokenizer = AutoTokenizer.from_pretrained(str(model_dir))
+
+        model_args = get_model_args(model_name)
+        assert model_args.n_vocab == len(tokenizer)
+        model = CausalLM.from_pretrained(
+            model_fn,
+            model_args,
+            strict,
+            get_state_dict_convert_fun(model_name),
+        )
+        model.eval()
+        return Pipeline(model, tokenizer, model_name)
 
     def _sample(self, logits: torch.Tensor, config: GenerationConfig) -> int:
         """Only support batch_size == 1
@@ -75,38 +120,9 @@ class Pipeline(nn.Module):
 
         return indices.tolist()[torch.multinomial(probs, num_samples=1).item()]
 
-    @staticmethod
-    def from_pretrained(
-        model_fn: Path | List[Path],
-        tokenizer_fn: Path = None,
-        model_name: str = None,
-        strict=True,
-    ) -> "Pipeline":
-        if isinstance(model_fn, Path):
-            model_fn = [model_fn]
-        if model_name is None:
-            model_name = model_fn[0].parent.name
-
-        tokenizer = SentencePieceProcessor()
-        tokenizer.Load(str(tokenizer_fn))
-        assert MODEL_ARGS_MAP[model_name].n_vocab == len(tokenizer)
-        model = CausalLM.from_pretrained(
-            model_fn,
-            MODEL_ARGS_MAP[model_name],
-            strict,
-            CONVERT_STATE_DICT_FUN_MAP[model_name],
-        )
-        model.eval()
-
-        return Pipeline(model, tokenizer)
-
-
-def preprocess_prompt(prompt: str):
-    return f"<|system|>\nYou are a chatbot who can help code!</s>\n<|user|>\n{prompt}</s>\n<|assistant|>\n"
-
 
 if __name__ == "__main__":
-    from helper import get_device, get_model_filenames
+    from helper import get_device
 
     gen_config = GenerationConfig(
         max_prompt_length=512,
@@ -120,12 +136,12 @@ if __name__ == "__main__":
 
     device = get_device()
     model_name = "TinyLlama-1.1B-Chat-v1.0"
-    model_fn = get_model_filenames(Path() / f"checkpoints/{model_name}")
+    # model_name = "OLMo-1B"
+    model_dir = Path() / f"checkpoints/{model_name}"
     tokenizer_fn = Path() / f"checkpoints/{model_name}/tokenizer.model"
-    pipeline = Pipeline.from_pretrained(model_fn, tokenizer_fn)
+    pipeline = Pipeline.from_pretrained(model_dir)
     prompts = [
         "Write me a function to calculate the first 10 digits of the fibonacci sequence in Python and print it out to the CLI.",
+        "hello",
     ]
-    prompts = [preprocess_prompt(p) for p in prompts]
     output = pipeline.generate(prompts[0], gen_config, device=device)
-    print(output)

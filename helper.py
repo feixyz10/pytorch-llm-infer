@@ -2,7 +2,7 @@ import torch
 
 from pathlib import Path
 from collections import OrderedDict
-from typing import List
+from typing import Callable, List
 
 from model.model_args import ModelArgs
 
@@ -24,7 +24,7 @@ def convert_state_dict_for_llama2(state_dict: OrderedDict) -> OrderedDict:
     return state_dict_new
 
 
-def get_model_filenames(model_dir: Path) -> List[Path]:
+def get_model_state_dict_filenames(model_dir: Path) -> List[Path]:
     assert model_dir.is_dir()
     if len(list(model_dir.glob("*.safetensors"))) > 0:
         return list(model_dir.glob("*.safetensors"))
@@ -42,6 +42,7 @@ def convert_state_dict_for_olmo(state_dict: OrderedDict):
         v: torch.Tensor = v
         if "wte" in k:
             state_dict_new["model.embed_tokens.weight"] = v
+            state_dict_new["lm_head.weight"] = v
         elif "blocks" in k:
             segs = k.split(".")
             bi = int(segs[3])
@@ -64,7 +65,6 @@ def convert_state_dict_for_olmo(state_dict: OrderedDict):
                 raise ValueError(f"Unknown weight name for layer {bi}: {weight_name}")
         else:
             raise ValueError(f"Unknown key: {k}")
-
     return state_dict_new
 
 
@@ -141,3 +141,30 @@ CONVERT_STATE_DICT_FUN_MAP = {
     "chinese-alpaca-2-1.3b": convert_state_dict_for_llama2,
     "chinese-llama-2-1.3b": convert_state_dict_for_llama2,
 }
+
+
+def preprocess_prompt_for_tinyllama_chat(
+    user_prompt: str,
+    system_prompt: str = "You are a chatbot who can help answer questions.",
+):
+    user_prompt = user_prompt.strip()
+    return (
+        f"<|system|>\n{system_prompt}</s>\n<|user|>\n{user_prompt}</s>\n<|assistant|>\n"
+    )
+
+
+PROMPT_PREPROCESS_FUN_MAP = {
+    "TinyLlama-1.1B-Chat-v1.0": preprocess_prompt_for_tinyllama_chat,
+}
+
+
+def get_prompt_preprocess_fun(model_name: str) -> Callable | None:
+    return PROMPT_PREPROCESS_FUN_MAP.get(model_name, None)
+
+
+def get_state_dict_convert_fun(model_name: str) -> Callable | None:
+    return CONVERT_STATE_DICT_FUN_MAP.get(model_name, None)
+
+
+def get_model_args(model_name: str) -> ModelArgs:
+    return MODEL_ARGS_MAP.get(model_name, None)

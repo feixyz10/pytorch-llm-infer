@@ -132,8 +132,8 @@ class FeedForward(nn.Module):
         self.dim, self.hidden_dim = dim, ffn_hidden_dim
 
         self.gate_proj = nn.Linear(self.dim, self.hidden_dim, bias=False)
-        self.up_proj = nn.Linear(self.dim, self.hidden_dim, bias=False)
         self.down_proj = nn.Linear(self.hidden_dim, self.dim, bias=False)
+        self.up_proj = nn.Linear(self.dim, self.hidden_dim, bias=False)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         # [B, L, D] --> [B, L, hD]
@@ -176,8 +176,11 @@ class RoPE(nn.Module):
         assert x.ndim == 4 and x.shape[3] == self.dim
         B, L, H, D = x.shape
         assert start_index + L <= self.max_seq_len
+        # NONE: llama2 implementation of RoPE is a bit different from the paper. I wasted a lot of time
+        # trying to figure it out.
+        x = x.view(B, L, H, 2, D // 2).transpose(-1, -2).contiguous().float()
         # [B, L, H, D] --> [B, L, H, D/2, 2] --> complex of shape [B, L, H, D/2]
-        x_complex = torch.view_as_complex(x.view(B, L, H, D // 2, 2).float())
+        x_complex = torch.view_as_complex(x)
         # [L, D/2] --> [1, L, 1, D/2]
         f_complex = self.freqs_complex[start_index : start_index + L].view(1, L, 1, -1)
         # [1, L, 1, D/2] x [B, L, H, D/2] --> [B, L, H, D/2]

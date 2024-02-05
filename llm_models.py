@@ -16,16 +16,20 @@ class OlmoModelForCausalLM(CausalLM):
 
 if __name__ == "__main__":
 
-    from helper import *
+    from helper import (
+        get_model_args,
+        get_state_dict_convert_fun,
+        get_model_state_dict_filenames,
+    )
 
-    # model_name = "chinese-alpaca-2-1.3b"
     model_name = "OLMo-1B"
-    model_fn = Path() / f"checkpoints/{model_name}/pytorch_model.bin"
+    model_dir = Path() / f"checkpoints/{model_name}"
+    model_fn = get_model_state_dict_filenames(model_dir)
     model = CausalLM.from_pretrained(
         model_fn,
-        MODEL_ARGS_MAP[model_name],
+        get_model_args(model_name),
         strict=True,
-        convert_state_dict_fun=CONVERT_STATE_DICT_FUN_MAP[model_name],
+        convert_state_dict_fun=get_state_dict_convert_fun(model_name),
     )
     with open(f"./temp/{model_name}-converted.txt", "w") as f:
         for k, v in model.state_dict().items():
