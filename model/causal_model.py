@@ -3,8 +3,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 import sys
-import json
-import safetensors.torch
 from pathlib import Path
 from typing import Callable, List
 from collections import OrderedDict
@@ -13,6 +11,7 @@ sys.path.append(str(Path(__file__).parent))
 
 from model_args import ModelArgs
 from module import EncoderBlock, make_norm
+from helper import load_model_state_dict, _load_model_state_dict
 
 
 class CausalLM(nn.Module):
@@ -40,16 +39,18 @@ class CausalLM(nn.Module):
                     "layers": nn.ModuleList(
                         [EncoderBlock(args) for _ in range(self.n_layers)]
                     ),
-                    "norm": make_norm(**args.model_dump()),
+                    "norm": make_norm(args),
                 }
             )
         )
-        self.lm_head = nn.Linear(self.dim, self.n_vocab, bias=False)
+        lm_head_bias = True if args.llm_type in ["phi"] else False
+        self.lm_head = nn.Linear(self.dim, self.n_vocab, bias=lm_head_bias)
 
         self.start_index = 0
 
     def reset(self):
         self.start_index = 0
+        return self
 
     def forward(self, tokens: torch.Tensor) -> torch.Tensor:
         assert tokens.ndim <= 2
@@ -69,36 +70,17 @@ class CausalLM(nn.Module):
 
     @staticmethod
     def from_pretrained(
-        model_fns: Path | List[Path],
-        model_args: Path | ModelArgs,
+        model_dir: Path | List[Path],
+        model_args: ModelArgs,
         strict=True,
         convert_state_dict_fun: Callable = None,
     ) -> "CausalLM":
-        if isinstance(model_fns, Path):
-            model_fns = [model_fns]
-        assert all([fn.is_file() for fn in model_fns])
-        state_dict = OrderedDict()
-        for fn in model_fns:
-            state_dict.update(_load_state_dict(fn))
+        state_dict: OrderedDict = load_model_state_dict(model_dir)
         if convert_state_dict_fun is not None:
             state_dict = convert_state_dict_fun(state_dict)
-        try:
-            args = ModelArgs(**json.load(model_args.open()))
-        except:
-            args = model_args
-        model = CausalLM(args)
+        model = CausalLM(model_args)
         model.load_state_dict(state_dict, strict=strict)
         return model
-
-
-def _load_state_dict(fn: Path) -> OrderedDict:
-    if fn.suffix == ".safetensors":
-        state_dict = safetensors.torch.load_file(fn, device="cpu")
-    elif fn.suffix in [".bin"]:
-        state_dict = torch.load(fn, map_location="cpu")
-    else:
-        raise ValueError(f"Unknown file type: {fn.suffix}")
-    return state_dict
 
 
 if __name__ == "__main__":

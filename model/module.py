@@ -9,80 +9,67 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).parent))
 
 from attention import scaled_dot_product_attention_gqa
+from rope import RoPE
 from model_args import ModelArgs
 
 
-def make_norm(
-    dim: int,
-    norm_eps: float = 1e-5,
-    norm_type: str = "rmsnorm",
-    norm_with_affine: bool = True,
-    **kwargs
-) -> nn.Module:
-    if norm_type == "rmsnorm":
-        return RMSNorm(dim, eps=norm_eps)
-    else:
+def make_norm(args: ModelArgs) -> nn.Module:
+    if args.llm_type == "llama":
+        return RMSNorm(args.dim, eps=args.norm_eps)
+    elif args.llm_type == "phi":
         return nn.LayerNorm(
-            dim, eps=norm_eps, elementwise_affine=norm_with_affine, bias=False
+            args.dim, eps=args.norm_eps, elementwise_affine=True, bias=True
         )
+    else:
+        raise NotImplementedError
 
 
 class EncoderBlock(nn.Module):
     def __init__(self, args: ModelArgs):
         super().__init__()
+        self.args = args
 
-        self.dim = args.dim
-        self.n_heads = args.n_heads
-        self.n_kv_heads = (
-            args.n_kv_heads if args.n_kv_heads is not None else args.n_heads
-        )
-        self.ffn_hidden_dim = args.ffn_hidden_dim
-
-        self.self_attn = SelfAttention(
-            self.dim,
-            self.n_heads,
-            self.n_kv_heads,
-            args.max_batch_size,
-            args.max_seq_len,
-        )
-        self.mlp = FeedForward(self.dim, self.ffn_hidden_dim)
-        self.input_layernorm = make_norm(**args.model_dump())
-        self.post_attention_layernorm = make_norm(**args.model_dump())
+        self.self_attn = SelfAttention(args)
+        self.mlp = FeedForward(args)
+        self.input_layernorm = make_norm(args)
+        if args.llm_type in ["phi"]:
+            self.post_attention_layernorm = nn.Identity()
+        else:  # llama and similars
+            self.post_attention_layernorm = make_norm(args)
 
     def forward(self, x: torch.Tensor, start_index: int) -> torch.Tensor:
-        # [B, L, D] + [B, L, D] --> [B, L, D]
+        if self.args.llm_type in ["phi"]:
+            residual = x
+            x = self.input_layernorm(x)
+            x1, x2 = self.self_attn(x, start_index), self.mlp(x)
+            return residual + x1 + x2
         x = x + self.self_attn(self.input_layernorm(x), start_index)
-        # [B, L, D] + [B, L, D] --> [B, L, D]
         x = x + self.mlp(self.post_attention_layernorm(x))
         return x
 
 
 class SelfAttention(nn.Module):
-    def __init__(
-        self,
-        dim: int,
-        n_heads: int,
-        n_kv_heads: int,
-        max_batch_size: int,
-        max_seq_len: int,
-    ):
+    def __init__(self, args: ModelArgs):
         super().__init__()
 
-        self.d, self.n_heads, self.n_kv_heads = dim, n_heads, n_kv_heads
-        self.d_head = dim // n_heads
+        self.n_heads, self.n_kv_heads = args.n_heads, args.n_kv_heads
+        if self.n_kv_heads is None:
+            self.n_kv_heads = self.n_heads
+        self.d_head = args.dim // args.n_heads
 
-        self.q_proj = nn.Linear(self.d, self.n_heads * self.d_head, bias=False)
-        self.k_proj = nn.Linear(self.d, self.n_kv_heads * self.d_head, bias=False)
-        self.v_proj = nn.Linear(self.d, self.n_kv_heads * self.d_head, bias=False)
-        self.o_proj = nn.Linear(self.n_heads * self.d_head, self.d, bias=False)
+        bias = True if args.llm_type in ["phi"] else False
+        self.q_proj = nn.Linear(args.dim, self.n_heads * self.d_head, bias=bias)
+        self.k_proj = nn.Linear(args.dim, self.n_kv_heads * self.d_head, bias=bias)
+        self.v_proj = nn.Linear(args.dim, self.n_kv_heads * self.d_head, bias=bias)
+        self.o_proj = nn.Linear(self.n_heads * self.d_head, args.dim, bias=bias)
 
         self.kv_cache = KVCache(
-            max_batch_size=max_batch_size,
-            max_seq_len=max_seq_len,
+            max_batch_size=args.max_batch_size,
+            max_seq_len=args.max_seq_len,
             n_kv_heads=self.n_kv_heads,
             d_head=self.d_head,
         )
-        self.rope = RoPE(max_seq_len=max_seq_len, dim=self.d_head, theta=10000.0)
+        self.rope = RoPE(args)
 
     def forward(self, x: torch.Tensor, start_index: int) -> torch.Tensor:
         batch_size, seq_len, _ = x.shape
@@ -127,19 +114,34 @@ class SelfAttention(nn.Module):
 
 
 class FeedForward(nn.Module):
-    def __init__(self, dim: int, ffn_hidden_dim: int):
+    def __init__(self, args: ModelArgs):
         super().__init__()
-        self.dim, self.hidden_dim = dim, ffn_hidden_dim
+        self.llm_type = args.llm_type
+        self.dim = args.dim
+        self.hidden_dim = args.ffn_hidden_dim
 
-        self.gate_proj = nn.Linear(self.dim, self.hidden_dim, bias=False)
-        self.down_proj = nn.Linear(self.hidden_dim, self.dim, bias=False)
-        self.up_proj = nn.Linear(self.dim, self.hidden_dim, bias=False)
+        if self.llm_type == "llama":
+            self.gate_proj = nn.Linear(self.dim, self.hidden_dim, bias=False)
+            self.down_proj = nn.Linear(self.hidden_dim, self.dim, bias=False)
+            self.up_proj = nn.Linear(self.dim, self.hidden_dim, bias=False)
+        elif self.llm_type in "phi":
+            self.gate_proj = nn.Linear(self.dim, self.hidden_dim, bias=True)
+            self.down_proj = nn.Linear(self.hidden_dim, self.dim, bias=True)
+        else:
+            raise NotImplementedError
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        # [B, L, D] --> [B, L, hD]
-        x1, x2 = F.silu(self.gate_proj(x)), self.up_proj(x)
-        # [B, L, hD] --> [B, L, D]
-        return self.down_proj(x1 * x2)
+        if self.llm_type == "llama":
+            # [B, L, D] --> [B, L, hD]
+            x1, x2 = F.silu(self.gate_proj(x)), self.up_proj(x)
+            # [B, L, hD] --> [B, L, D]
+            return self.down_proj(x1 * x2)
+        if self.llm_type == "phi":
+            # [B, L, D] --> [B, L, hD]
+            x1 = F.gelu(self.gate_proj(x), approximate="tanh")
+            # [B, L, hD] --> [B, L, D]
+            return self.down_proj(x1)
+        raise NotImplementedError
 
 
 class RMSNorm(nn.Module):
@@ -154,51 +156,6 @@ class RMSNorm(nn.Module):
         x = x * torch.rsqrt(torch.mean(x**2, dim=-1, keepdim=True) + self.eps)
         # [D] * [B, L, D] --> [B, L, D], broadcasting
         return self.weight * x
-
-
-class RoPE(nn.Module):
-    def __init__(
-        self,
-        max_seq_len: int,
-        dim: int,
-        theta: float = 10000.0,
-    ):
-        super().__init__()
-        assert dim % 2 == 0, "Dimension must be divisible by 2"
-        self.max_seq_len, self.dim = max_seq_len, dim
-        self.inv_theta = 1.0 / theta
-
-        # [max_seq_len, dim//2]
-        freqs_complex: torch.Tensor = self._precompute_freqs()
-        self.register_buffer("freqs_complex", freqs_complex, persistent=False)
-
-    def forward(self, x: torch.Tensor, start_index: int = 0) -> torch.Tensor:
-        assert x.ndim == 4 and x.shape[3] == self.dim
-        B, L, H, D = x.shape
-        assert start_index + L <= self.max_seq_len
-        # NONE: llama2 implementation of RoPE is a bit different from the paper. I wasted a lot of time
-        # trying to figure it out.
-        x = x.view(B, L, H, 2, D // 2).transpose(-1, -2).contiguous().float()
-        # [B, L, H, D] --> [B, L, H, D/2, 2] --> complex of shape [B, L, H, D/2]
-        x_complex = torch.view_as_complex(x)
-        # [L, D/2] --> [1, L, 1, D/2]
-        f_complex = self.freqs_complex[start_index : start_index + L].view(1, L, 1, -1)
-        # [1, L, 1, D/2] x [B, L, H, D/2] --> [B, L, H, D/2]
-        x_rotated = f_complex * x_complex
-        # complex of shape [B, L, H, D/2] --> real of shape [B, L, H, D/2, 2] --> [B, L, H, D]
-        output = torch.view_as_real(x_rotated).view(B, L, H, D)
-        return output.type_as(x)
-
-    def _precompute_freqs(self) -> torch.Tensor:
-        dtype = torch.float32
-        # theta_i = 10000^(-2(i-1)/dim), i = [1, 2, ... dim/2]
-        i = torch.arange(0, self.dim, 2, dtype=dtype)
-        inv_freq = self.inv_theta ** (i / self.dim)  # shape: [dim/2]
-        t = torch.arange(0, self.max_seq_len, dtype=dtype)
-        freqs = torch.einsum("i,j->ij", t, inv_freq)  # shape: [max_seq_len, dim/2]
-        # --> exp(j * freqs) = cos(freqs) + j * sin(freqs), complex of shape: [max_seq_len, dim/2]
-        freqs_complex = torch.polar(torch.ones_like(freqs), freqs)
-        return freqs_complex
 
 
 class KVCache(nn.Module):
@@ -260,7 +217,7 @@ if __name__ == "__main__":
         max_batch_size=1,
         max_seq_len=256,
     )
-    rope = RoPE(max_seq_len=128, dim=64)
+    rope = RoPE(model_args)
     rope(torch.randn(1, 4, 8, 64))
 
     kvcache = KVCache(max_batch_size=1, max_seq_len=128, n_kv_heads=8, d_head=64)

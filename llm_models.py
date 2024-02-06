@@ -19,14 +19,14 @@ if __name__ == "__main__":
     from helper import (
         get_model_args,
         get_state_dict_convert_fun,
-        get_model_state_dict_filenames,
+        print_model_state_dict,
     )
 
-    model_name = "OLMo-1B"
+    model_name = "phi-1_5"  # "phi-2"  # "OLMo-1B"
     model_dir = Path() / f"checkpoints/{model_name}"
-    model_fn = get_model_state_dict_filenames(model_dir)
+    print_model_state_dict(model_dir, f"./temp/{model_name}.txt")
     model = CausalLM.from_pretrained(
-        model_fn,
+        model_dir,
         get_model_args(model_name),
         strict=True,
         convert_state_dict_fun=get_state_dict_convert_fun(model_name),
