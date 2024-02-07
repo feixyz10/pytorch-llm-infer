@@ -3,11 +3,12 @@ from pydantic import BaseModel
 
 
 class ModelArgs(BaseModel):
-    llm_type: Literal["llama", "phi"] = "llama"
+    llm_type: Literal["llama", "phi", "qwen"] = "llama"
     # basic
     dim: int = -1
     n_vocab: int = -1
     n_layers: int = -1
+    wte_tying: bool = False
     # attention
     n_heads: int = -1
     n_kv_heads: Optional[int] = None  # None means n_kv_heads = n_heads

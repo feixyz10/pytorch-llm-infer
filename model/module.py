@@ -14,14 +14,11 @@ from model_args import ModelArgs
 
 
 def make_norm(args: ModelArgs) -> nn.Module:
-    if args.llm_type == "llama":
-        return RMSNorm(args.dim, eps=args.norm_eps)
-    elif args.llm_type == "phi":
+    if args.llm_type in ["phi"]:
         return nn.LayerNorm(
             args.dim, eps=args.norm_eps, elementwise_affine=True, bias=True
         )
-    else:
-        raise NotImplementedError
+    return RMSNorm(args.dim, eps=args.norm_eps)
 
 
 class EncoderBlock(nn.Module):
@@ -57,10 +54,11 @@ class SelfAttention(nn.Module):
             self.n_kv_heads = self.n_heads
         self.d_head = args.dim // args.n_heads
 
-        bias = True if args.llm_type in ["phi"] else False
+        bias = True if args.llm_type in ["phi", "qwen"] else False
         self.q_proj = nn.Linear(args.dim, self.n_heads * self.d_head, bias=bias)
         self.k_proj = nn.Linear(args.dim, self.n_kv_heads * self.d_head, bias=bias)
         self.v_proj = nn.Linear(args.dim, self.n_kv_heads * self.d_head, bias=bias)
+        bias = True if args.llm_type in ["phi"] else False
         self.o_proj = nn.Linear(self.n_heads * self.d_head, args.dim, bias=bias)
 
         self.kv_cache = KVCache(
@@ -120,28 +118,24 @@ class FeedForward(nn.Module):
         self.dim = args.dim
         self.hidden_dim = args.ffn_hidden_dim
 
-        if self.llm_type == "llama":
-            self.gate_proj = nn.Linear(self.dim, self.hidden_dim, bias=False)
-            self.down_proj = nn.Linear(self.hidden_dim, self.dim, bias=False)
-            self.up_proj = nn.Linear(self.dim, self.hidden_dim, bias=False)
-        elif self.llm_type in "phi":
+        if self.llm_type in ["phi"]:
             self.gate_proj = nn.Linear(self.dim, self.hidden_dim, bias=True)
             self.down_proj = nn.Linear(self.hidden_dim, self.dim, bias=True)
         else:
-            raise NotImplementedError
+            self.gate_proj = nn.Linear(self.dim, self.hidden_dim, bias=False)
+            self.down_proj = nn.Linear(self.hidden_dim, self.dim, bias=False)
+            self.up_proj = nn.Linear(self.dim, self.hidden_dim, bias=False)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        if self.llm_type == "llama":
-            # [B, L, D] --> [B, L, hD]
-            x1, x2 = F.silu(self.gate_proj(x)), self.up_proj(x)
-            # [B, L, hD] --> [B, L, D]
-            return self.down_proj(x1 * x2)
-        if self.llm_type == "phi":
+        if self.llm_type in ["phi"]:
             # [B, L, D] --> [B, L, hD]
             x1 = F.gelu(self.gate_proj(x), approximate="tanh")
             # [B, L, hD] --> [B, L, D]
             return self.down_proj(x1)
-        raise NotImplementedError
+        # [B, L, D] --> [B, L, hD]
+        x1, x2 = F.silu(self.gate_proj(x)), self.up_proj(x)
+        # [B, L, hD] --> [B, L, D]
+        return self.down_proj(x1 * x2)
 
 
 class RMSNorm(nn.Module):

@@ -22,7 +22,14 @@ if __name__ == "__main__":
         print_model_state_dict,
     )
 
-    model_name = "phi-1_5"  # "phi-2"  # "OLMo-1B"
+    model_names = [
+        "phi-1_5",
+        "phi-2",
+        "TinyLlama-1.1B-Chat-v1.0",
+        "Qwen1.5-0.5B-Chat",
+        "Qwen1.5-1.8B-Chat",
+    ]
+    model_name = model_names[3]
     model_dir = Path() / f"checkpoints/{model_name}"
     print_model_state_dict(model_dir, f"./temp/{model_name}.txt")
     model = CausalLM.from_pretrained(

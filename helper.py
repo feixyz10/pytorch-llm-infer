@@ -165,6 +165,32 @@ MODEL_ARGS_MAP = {
         max_batch_size=1,
         max_seq_len=2048,
     ),
+    "Qwen1.5-0.5B-Chat": ModelArgs(
+        llm_type="qwen",
+        n_vocab=151936,
+        dim=1024,
+        n_layers=24,
+        n_heads=16,
+        n_kv_heads=None,
+        ffn_hidden_dim=2816,
+        norm_eps=1e-6,
+        rope_theta=1000000.0,
+        max_batch_size=1,
+        max_seq_len=32768,
+    ),
+    "Qwen1.5-1.8B-Chat": ModelArgs(
+        llm_type="qwen",
+        n_vocab=151936,
+        dim=2048,
+        n_layers=24,
+        n_heads=16,
+        n_kv_heads=None,
+        ffn_hidden_dim=5504,
+        norm_eps=1e-6,
+        rope_theta=1000000.0,
+        max_batch_size=1,
+        max_seq_len=32768,
+    ),
 }
 
 CONVERT_STATE_DICT_FUN_MAP = {
@@ -194,8 +220,40 @@ def preprocess_prompt_for_tinyllama_chat(
     return prompt
 
 
+def preprocess_prompt_for_qwen_chat(
+    user_prompt: str,
+    history: List[Tuple[str, str]] = None,
+    system_prompt: str = None,
+) -> str:
+    user_prompt = user_prompt.strip()
+    sys_prompt = "You are a helpful assistant."
+    if system_prompt is not None:
+        sys_prompt = system_prompt.strip()
+    if history is None or len(history) == 0:
+        return f"<|im_start|>system\n{sys_prompt}<|im_end|>\n<|im_start|>user\n{user_prompt}<|im_end|>\n<|im_start|>assistant\n"
+    prompt = f"<|im_start|>system\n{sys_prompt}<|im_end|>\n"
+    for _, (u, r) in enumerate(history):
+        prompt += (
+            f"<|im_start|>user\n{u}<|im_end|>\n<|im_start|>assistant\n{r}<|im_end|>\n"
+        )
+    prompt += f"<|im_start|>user\n{user_prompt}<|im_end|>\n<|im_start|>assistant\n"
+    return prompt
+
+
 def _default_fun(x, *args, **kwargs):
     return x
+
+
+def postprocess_responce_for_qwen_chat(response: str) -> str:
+    idx = response.find("<|im_end|>")
+    idx = 0 if idx == -1 else idx + 10
+    response = response[idx:].strip()
+    response = response.replace("<|im_start|>user", "user: ")
+    response = response.replace("<|im_end|>", "")
+    response = response.replace("<|im_start|>assistant", "assistant: ")
+    response = response.replace("<|endoftext|>", "")
+    response = response.replace("\n\n", "\n")
+    return response
 
 
 def postprocess_responce_for_tinyllama_chat(response: str) -> str:
@@ -206,15 +264,20 @@ def postprocess_responce_for_tinyllama_chat(response: str) -> str:
     response = response.replace("<|user|>", "user: ")
     response = response.replace("</s>", "")
     response = response.replace("<s>", "")
+    response = response.replace("\n\n", "\n")
     return response
 
 
 PROMPT_PREPROCESS_FUN_MAP = {
     "TinyLlama-1.1B-Chat-v1.0": preprocess_prompt_for_tinyllama_chat,
+    "Qwen1.5-0.5B-Chat": preprocess_prompt_for_qwen_chat,
+    "Qwen1.5-1.8B-Chat": preprocess_prompt_for_qwen_chat,
 }
 
 RESPONCE_POSTPROCESS_FUN_MAP = {
     "TinyLlama-1.1B-Chat-v1.0": postprocess_responce_for_tinyllama_chat,
+    "Qwen1.5-0.5B-Chat": postprocess_responce_for_qwen_chat,
+    "Qwen1.5-1.8B-Chat": postprocess_responce_for_qwen_chat,
 }
 
 
@@ -238,3 +301,7 @@ def get_state_dict_convert_fun(
 
 def get_model_args(model_name: str) -> ModelArgs:
     return MODEL_ARGS_MAP.get(model_name, None)
+
+
+if __name__ == "__main__":
+    print(preprocess_prompt_for_qwen_chat("abcd", [("a", "b")]))

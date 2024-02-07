@@ -202,7 +202,7 @@ if __name__ == "__main__":
 
     gen_config = GenerationConfig(
         max_prompt_length=50,
-        max_length=60,
+        max_length=70,
         do_sample=True,
         temperature=1.0,
         top_k=1,
@@ -211,9 +211,15 @@ if __name__ == "__main__":
         verbose=True,
     )
 
-    device = get_device()
-    model_names = ["phi-1_5", "phi-2", "TinyLlama-1.1B-Chat-v1.0"]
-    model_name = model_names[2]
+    device = get_device("cpu")
+    model_names = [
+        "phi-1_5",
+        "phi-2",
+        "TinyLlama-1.1B-Chat-v1.0",
+        "Qwen1.5-0.5B-Chat",
+        "Qwen1.5-1.8B-Chat",
+    ]
+    model_name = model_names[4]
     model_dir = Path() / f"checkpoints/{model_name}"
     pipeline = Pipeline.from_pretrained(model_dir)
     prompts = [
@@ -223,18 +229,18 @@ if __name__ == "__main__":
         "I don't know why, I'm struggling to maintain focus while studying. Any suggestions?",
     ]
     prompt = prompts[3]
-    output = pipeline.stream_generate(
-        prompt, config=gen_config, device=device, flush_every=1
-    )
-    output = pipeline.generate(prompt, config=gen_config, device=device)
+    # output = pipeline.stream_generate(
+    #     prompt, config=gen_config, device=device, flush_every=1
+    # )
+    # output = pipeline.generate(prompt, config=gen_config, device=device)
 
-    # history = None
-    # output, history = pipeline.chat(
-    #     prompt, history=history, config=gen_config, device=device
-    # )
-    # output, history = pipeline.chat(
-    #     "Greet suggestions, thank you!",
-    #     history=history,
-    #     config=gen_config,
-    #     device=device,
-    # )
+    history = None
+    output, history = pipeline.chat(
+        prompt, history=history, config=gen_config, device=device
+    )
+    output, history = pipeline.chat(
+        "Great suggestions, thank you!",
+        history=history,
+        config=gen_config,
+        device=device,
+    )
