@@ -52,12 +52,18 @@ def scaled_dot_product_attention_gqa(
         )
 
     query = query.view(*query.shape[:-3], n_kv_heads, n_heads // n_kv_heads, L, -1)
-    query = query.transpose(-3, -4).contiguous()
+    query = query.transpose(-3, -4)
     key = key.view(*key.shape[:-3], 1, n_kv_heads, S, -1)
     value = value.view(*value.shape[:-3], 1, n_kv_heads, S, -1)
     if is_causal:
         mask_shape = (*query.shape[:-2], L, S)
         attn_mask = attn_mask.view(*mask_shape)
+    # # following lines are equivalent to the F.scaled_dot_product_attention, but may slower
+    # weights = (query @ key.transpose(-2, -1)) / math.sqrt(key.size(-1))
+    # if is_causal:
+    #     weights = weights.masked_fill(~attn_mask, -float("inf"))
+    # weights = F.softmax(weights, dim=-1)
+    # output = weights @ v
     output = F.scaled_dot_product_attention(
         query,
         key,
@@ -67,8 +73,7 @@ def scaled_dot_product_attention_gqa(
         is_causal=False,
         scale=scale,
     )
-    output = output.transpose(-3, -4).contiguous()
-    return output.view(*output.shape[:-4], n_heads, L, -1)
+    return output.transpose(-3, -4).reshape(*output.shape[:-4], n_heads, L, -1)
 
 
 def scaled_dot_product_attention_gqa2(
