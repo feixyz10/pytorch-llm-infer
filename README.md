@@ -41,6 +41,6 @@ Oh my own pytorch implementation (from scratch) of some famous large language mo
     - [ ] [OLMo](https://huggingface.co/allenai/OLMo-1B)
 
 
-## Coffee
+## :coffee:
 
-Please buy me a [coffee:coffee:](https://ko-fi.com/excitingme) if you find this project useful. 
+Please buy me a [:coffee:](https://ko-fi.com/excitingme) if you find this project useful. 
