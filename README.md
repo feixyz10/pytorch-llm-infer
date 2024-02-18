@@ -10,6 +10,7 @@ Oh my own pytorch implementation (from scratch) of some famous large language mo
 
 
 # Features
+
 ##  Future Already Added
 
 - [x] rotary position embeddings / partial rotory position embeddings --> ./model/rope.py
@@ -21,16 +22,25 @@ Oh my own pytorch implementation (from scratch) of some famous large language mo
 - [x] [tinyllama](https://huggingface.co/TinyLlama/TinyLlama-1.1B-Chat-v1.0)
 - [x] [phi-2](https://huggingface.co/microsoft/phi-2), [phi-1_5](https://huggingface.co/microsoft/phi-1_5)
 - [x] [qwen](https://huggingface.co/Qwen)
-- [ ] [OLMo](https://huggingface.co/allenai/OLMo-1B)
 
 ## TODO list
-- [ ] fancy sampling: top-k / top-p / repetition_penalty, etc.
-- [ ] speculative_decoding
-    - https://github.com/jzhang38/TinyLlama/blob/main/speculative_decoding/instruct_hf_assisted_decoding.py
+
+- [ ] fancy sampling
+    - [ ] top-k
+    - [ ] top-p
+    - [ ] repetition_penalty
 - [ ] quantization
+- [ ] [speculative_decoding](https://github.com/jzhang38/TinyLlama/blob/main/speculative_decoding/instruct_hf_assisted_decoding.py)
+- [ ] beam search
 - [ ] Linear and Dynamically Scaled RoPE
     - https://www.reddit.com/r/LocalLLaMA/comments/14mrgpr/dynamically_scaled_rope_further_increases/
     - https://arxiv.org/pdf/2309.00071.pdf
 - [ ] batch size > 1
 - [ ] batch size > 1 and concat to batch_size=1
-- [ ] support models: OLMo, etc.
+- [ ] support more models: 
+    - [ ] [OLMo](https://huggingface.co/allenai/OLMo-1B)
+
+
+## Coffee
+
+Please buy me a [coffee:coffee:](https://ko-fi.com/excitingme) if you find this project useful. 
