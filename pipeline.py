@@ -101,7 +101,7 @@ class Pipeline(nn.Module):
         history: List[Tuple[str, str]] = None,
         config: GenerationConfig = None,
         device: torch.device = None,
-    ) -> List[str]:
+    ):
         if config is None:
             config = GenerationConfig()
         prompt = self._preprocess(prompt, history=history)
@@ -218,8 +218,11 @@ if __name__ == "__main__":
         "TinyLlama-1.1B-Chat-v1.0",
         "Qwen1.5-0.5B-Chat",
         "Qwen1.5-1.8B-Chat",
+        "gemma-2b-it",
     ]
-    model_name = model_names[4]
+    model_name = model_names[3]
+    print("model name:", model_name)
+    print("device:", device.type)
     model_dir = Path() / f"checkpoints/{model_name}"
     pipeline = Pipeline.from_pretrained(model_dir)
     prompts = [

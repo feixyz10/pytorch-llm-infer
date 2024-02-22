@@ -73,6 +73,17 @@ def convert_state_dict_for_llama2(state_dict: OrderedDict) -> OrderedDict:
     return state_dict_new
 
 
+def convert_state_dict_for_gemma(state_dict: OrderedDict) -> OrderedDict:
+    state_dict_new = OrderedDict()
+    for k, v in state_dict.items():
+        if "embed_tokens" in k:
+            state_dict_new["model.embed_tokens.weight"] = v
+            state_dict_new["lm_head.weight"] = v
+        else:
+            state_dict_new[k] = v
+    return state_dict_new
+
+
 def convert_state_dict_for_phi2(state_dict: OrderedDict):
     state_dict_new = OrderedDict()
     for k, v in state_dict.items():
@@ -191,6 +202,19 @@ MODEL_ARGS_MAP = {
         max_batch_size=1,
         max_seq_len=32768,
     ),
+    "gemma-2b-it": ModelArgs(
+        llm_type="llama",
+        n_vocab=256000,
+        dim=2048,
+        n_layers=18,
+        n_heads=8,
+        n_kv_heads=1,
+        ffn_hidden_dim=16384,
+        norm_eps=1e-6,
+        rope_theta=10000.0,
+        max_batch_size=1,
+        max_seq_len=8192,
+    ),
 }
 
 CONVERT_STATE_DICT_FUN_MAP = {
@@ -199,6 +223,7 @@ CONVERT_STATE_DICT_FUN_MAP = {
     "OLMo-1B": convert_state_dict_for_olmo,
     "phi-2": convert_state_dict_for_phi2,
     "phi-1_5": convert_state_dict_for_phi2,
+    "gemma-2b-it": convert_state_dict_for_gemma,
 }
 
 
@@ -240,6 +265,23 @@ def preprocess_prompt_for_qwen_chat(
     return prompt
 
 
+def preprocess_prompt_for_gemma_it(
+    user_prompt: str,
+    history: List[Tuple[str, str]] = None,
+    system_prompt: str = None,
+) -> str:
+    user_prompt = user_prompt.strip()
+    if history is None or len(history) == 0:
+        return f"<|start_of_turn|>user\n{user_prompt}<|end_of_turn|>\n<|start_of_turn|>model\n"
+    prompt = f""
+    for _, (u, r) in enumerate(history):
+        prompt += f"<|start_of_turn|>user\n{u}<|end_of_turn|>\n<|start_of_turn|>model\n{r}<|end_of_turn|>\n"
+    prompt += (
+        f"<|start_of_turn|>user\n{user_prompt}<|end_of_turn|>\n<|start_of_turn|>model\n"
+    )
+    return prompt
+
+
 def _default_fun(x, *args, **kwargs):
     return x
 
@@ -252,6 +294,17 @@ def postprocess_responce_for_qwen_chat(response: str) -> str:
     response = response.replace("<|im_end|>", "")
     response = response.replace("<|im_start|>assistant", "assistant: ")
     response = response.replace("<|endoftext|>", "")
+    response = response.replace("\n\n", "\n")
+    return response
+
+
+def postprocess_responce_for_gemma_it(response: str) -> str:
+    response = response.replace("<|start_of_turn|>user", "user: ")
+    response = response.replace("<|end_of_turn|>", "")
+    response = response.replace("<|start_of_turn|>assistant", "assistant: ")
+    response = response.replace("<|end_of_turn|>", "")
+    response = response.replace("<bos>", "")
+    response = response.replace("<eos>", "")
     response = response.replace("\n\n", "\n")
     return response
 
@@ -272,12 +325,14 @@ PROMPT_PREPROCESS_FUN_MAP = {
     "TinyLlama-1.1B-Chat-v1.0": preprocess_prompt_for_tinyllama_chat,
     "Qwen1.5-0.5B-Chat": preprocess_prompt_for_qwen_chat,
     "Qwen1.5-1.8B-Chat": preprocess_prompt_for_qwen_chat,
+    "gemma-2b-it": preprocess_prompt_for_gemma_it,
 }
 
 RESPONCE_POSTPROCESS_FUN_MAP = {
     "TinyLlama-1.1B-Chat-v1.0": postprocess_responce_for_tinyllama_chat,
     "Qwen1.5-0.5B-Chat": postprocess_responce_for_qwen_chat,
     "Qwen1.5-1.8B-Chat": postprocess_responce_for_qwen_chat,
+    "gemma-2b-it": postprocess_responce_for_gemma_it,
 }
 
 

@@ -11,7 +11,7 @@ Oh my own pytorch implementation (from scratch) of some famous large language mo
 
 # Features
 
-##  Future Already Added
+##  Features Already Added
 
 - [x] rotary position embeddings / partial rotory position embeddings --> ./model/rope.py
 - [x] multi-head / multi-query / group-query attention --> ./model/attention.py
@@ -22,6 +22,8 @@ Oh my own pytorch implementation (from scratch) of some famous large language mo
 - [x] [tinyllama](https://huggingface.co/TinyLlama/TinyLlama-1.1B-Chat-v1.0)
 - [x] [phi-2](https://huggingface.co/microsoft/phi-2), [phi-1_5](https://huggingface.co/microsoft/phi-1_5)
 - [x] [qwen](https://huggingface.co/Qwen)
+- [x] [Gemma](https://huggingface.co/google/gemma-2b-it)
+
 
 ## TODO list
 
@@ -29,9 +31,9 @@ Oh my own pytorch implementation (from scratch) of some famous large language mo
     - [ ] top-k
     - [ ] top-p
     - [ ] repetition_penalty
+    - [ ] beam search
 - [ ] quantization
 - [ ] [speculative_decoding](https://github.com/jzhang38/TinyLlama/blob/main/speculative_decoding/instruct_hf_assisted_decoding.py)
-- [ ] beam search
 - [ ] Linear and Dynamically Scaled RoPE
     - https://www.reddit.com/r/LocalLLaMA/comments/14mrgpr/dynamically_scaled_rope_further_increases/
     - https://arxiv.org/pdf/2309.00071.pdf
@@ -40,7 +42,6 @@ Oh my own pytorch implementation (from scratch) of some famous large language mo
 - [ ] support more models: 
     - [ ] [OLMo](https://huggingface.co/allenai/OLMo-1B)
 
-
-## :coffee:
+## Coffee(:coffee:):
 
 Please buy me a [:coffee:](https://ko-fi.com/excitingme) if you find this project useful. 

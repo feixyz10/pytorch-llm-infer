@@ -28,8 +28,9 @@ if __name__ == "__main__":
         "TinyLlama-1.1B-Chat-v1.0",
         "Qwen1.5-0.5B-Chat",
         "Qwen1.5-1.8B-Chat",
+        "gemma-2b-it",
     ]
-    model_name = model_names[3]
+    model_name = model_names[5]
     model_dir = Path() / f"checkpoints/{model_name}"
     print_model_state_dict(model_dir, f"./temp/{model_name}.txt")
     model = CausalLM.from_pretrained(
