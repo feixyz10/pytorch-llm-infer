@@ -25,6 +25,7 @@ Oh my own pytorch implementation (from scratch) of some famous large language mo
 - [x] kv cache --> ./model/module.py
 
 ## Supported Models
+
 - [x] [tinyllama](https://huggingface.co/TinyLlama/TinyLlama-1.1B-Chat-v1.0)
 - [x] [phi-2](https://huggingface.co/microsoft/phi-2), [phi-1_5](https://huggingface.co/microsoft/phi-1_5)
 - [x] [qwen](https://huggingface.co/Qwen)
@@ -49,6 +50,6 @@ Oh my own pytorch implementation (from scratch) of some famous large language mo
 - [ ] support more models: 
     - [ ] [OLMo](https://huggingface.co/allenai/OLMo-1B)
 
-## Coffee(:coffee:):
+## Coffee
 
 Please buy me a [:coffee:](https://ko-fi.com/excitingme) if you find this project useful. 
