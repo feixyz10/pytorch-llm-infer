@@ -201,8 +201,8 @@ if __name__ == "__main__":
     from helper import get_device
 
     gen_config = GenerationConfig(
-        max_prompt_length=2048,
-        max_length=4096,
+        max_prompt_length=1024,
+        max_length=2048,
         do_sample=True,
         temperature=1.0,
         top_k=1,
@@ -220,19 +220,19 @@ if __name__ == "__main__":
         "Qwen1.5-1.8B-Chat",
         "gemma-2b-it",
     ]
-    model_name = model_names[-2]
+    model_name = model_names[-1]
     print("model name:", model_name)
     print("device:", device.type)
     model_dir = Path() / f"checkpoints/{model_name}"
     pipeline = Pipeline.from_pretrained(model_dir)
     prompts = [
-        "# print all primes between 1 and n\ndef print_prime(n):\n",
-        "Write a detailed analogy between mathematics and a lighthouse.\nAnswer: ",
-        "Alice: I don't know why, I'm struggling to maintain focus while studying. Any suggestions?\nBob: ",
+        'def print_prime(n):\n    """\n    print all primes between 1 and n\n    """\n',
+        "Instruct: Write a detailed analogy between mathematics and a lighthouse.\n\nOutput:",
+        "Alice: I don't know why, I'm struggling to maintain focus while studying. Any suggestions?\n\nBob: ",
         "I don't know why, I'm struggling to maintain focus while studying. Any suggestions?",
         "Please tell me a joke about Python.",
     ]
-    prompt = prompts[-1]
+    prompt = prompts[-2]
     # output = pipeline.stream_generate(
     #     prompt, config=gen_config, device=device, flush_every=1
     # )
@@ -243,7 +243,7 @@ if __name__ == "__main__":
         prompt, history=history, config=gen_config, device=device
     )
     output, history = pipeline.chat(
-        "Great, thank you!",
+        "Very nice answer, thank you!",
         history=history,
         config=gen_config,
         device=device,
