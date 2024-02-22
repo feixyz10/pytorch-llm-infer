@@ -59,6 +59,8 @@ class CausalLM(nn.Module):
         _, L = tokens.shape
 
         h = self.model["embed_tokens"](tokens)  # [B, L] --> [B, L, D]
+        if self.args.llm_type in ["gemma"]:
+            h = h * self.dim**0.5
         for layer in self.model["layers"]:
             h = layer(h, self.start_index)  # [B, L, D] --> [B, L, D]
         h = self.model["norm"](h)  # [B, L, D] --> [B, L, D]

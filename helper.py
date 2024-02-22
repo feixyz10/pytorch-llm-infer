@@ -13,7 +13,7 @@ def get_device(device="auto") -> torch.device:
     if device == "auto":
         if torch.cuda.is_available():
             device = "cuda"
-        if torch.backends.mps.is_available():
+        elif torch.backends.mps.is_available():
             device = "mps"
         else:
             device = "cpu"
@@ -141,9 +141,9 @@ MODEL_ARGS_MAP = {
         max_batch_size=1,
         max_seq_len=2048,
     ),
-    "llama-7b": ModelArgs(
+    "LLama2-7b": ModelArgs(
         llm_type="llama",
-        n_vocab=50304,
+        n_vocab=32000,
         dim=4096,
         n_layers=32,
         n_heads=32,
@@ -203,7 +203,7 @@ MODEL_ARGS_MAP = {
         max_seq_len=32768,
     ),
     "gemma-2b-it": ModelArgs(
-        llm_type="llama",
+        llm_type="gemma",
         n_vocab=256000,
         dim=2048,
         n_layers=18,
@@ -219,7 +219,7 @@ MODEL_ARGS_MAP = {
 
 CONVERT_STATE_DICT_FUN_MAP = {
     "TinyLlama-1.1B-Chat-v1.0": convert_state_dict_for_llama2,
-    "llama-7b": convert_state_dict_for_llama2,
+    "LLama2-7b": convert_state_dict_for_llama2,
     "OLMo-1B": convert_state_dict_for_olmo,
     "phi-2": convert_state_dict_for_phi2,
     "phi-1_5": convert_state_dict_for_phi2,
@@ -287,38 +287,42 @@ def _default_fun(x, *args, **kwargs):
 
 
 def postprocess_responce_for_qwen_chat(response: str) -> str:
-    idx = response.find("<|im_end|>")
-    idx = 0 if idx == -1 else idx + 10
-    response = response[idx:].strip()
-    response = response.replace("<|im_start|>user", "user: ")
+    response = response.strip()
+    if response.startswith("<|im_start|>system"):
+        idx = response.find("<|im_end|>")
+        idx = 0 if idx == -1 else idx + 10
+        response = response[idx:].strip()
+    response = response.replace("<|im_start|>user", "\nuser:\n")
     response = response.replace("<|im_end|>", "")
-    response = response.replace("<|im_start|>assistant", "assistant: ")
+    response = response.replace("<|im_start|>assistant", "\nassistant:\n")
     response = response.replace("<|endoftext|>", "")
-    response = response.replace("\n\n", "\n")
-    return response
+    # response = response.replace("\n\n", "\n")
+    return response.lstrip()
 
 
 def postprocess_responce_for_gemma_it(response: str) -> str:
-    response = response.replace("<|start_of_turn|>user", "user: ")
+    response = response.replace("<|start_of_turn|>user", "\nuser:\n")
     response = response.replace("<|end_of_turn|>", "")
-    response = response.replace("<|start_of_turn|>assistant", "assistant: ")
+    response = response.replace("<|start_of_turn|>model", "\nmodel:\n")
     response = response.replace("<|end_of_turn|>", "")
     response = response.replace("<bos>", "")
     response = response.replace("<eos>", "")
-    response = response.replace("\n\n", "\n")
-    return response
+    # response = response.replace("\n\n", "\n")
+    return response.lstrip()
 
 
 def postprocess_responce_for_tinyllama_chat(response: str) -> str:
-    idx = response.find("</s>")
-    idx = 0 if idx == -1 else idx + 4
-    response = response[idx:].strip()
-    response = response.replace("<|assistant|>", "assistant: ")
-    response = response.replace("<|user|>", "user: ")
+    response = response.strip()
+    if response.startswith("</s>"):
+        idx = response.find("</s>")
+        idx = 0 if idx == -1 else idx + 4
+        response = response[idx:].strip()
+    response = response.replace("<|assistant|>", "\nassistant:\n")
+    response = response.replace("<|user|>", "\nuser:\n")
     response = response.replace("</s>", "")
     response = response.replace("<s>", "")
-    response = response.replace("\n\n", "\n")
-    return response
+    # response = response.replace("\n\n", "\n")
+    return response.lstrip()
 
 
 PROMPT_PREPROCESS_FUN_MAP = {
@@ -359,4 +363,4 @@ def get_model_args(model_name: str) -> ModelArgs:
 
 
 if __name__ == "__main__":
-    print(preprocess_prompt_for_qwen_chat("abcd", [("a", "b")]))
+    print(preprocess_prompt_for_gemma_it("abcd", [("a", "b")]))

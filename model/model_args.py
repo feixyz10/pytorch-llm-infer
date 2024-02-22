@@ -3,7 +3,7 @@ from pydantic import BaseModel
 
 
 class ModelArgs(BaseModel):
-    llm_type: Literal["llama", "phi", "qwen"] = "llama"
+    llm_type: Literal["llama", "phi", "qwen", "gemma"] = "llama"
     # basic
     dim: int = -1
     n_vocab: int = -1

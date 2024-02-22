@@ -2,3 +2,5 @@ pydantic==2.6.1
 safetensors==0.4.2
 torch==2.2.0
 transformers==4.38.1
+sentencepiece==0.2.0
+protobuf==4.25.3

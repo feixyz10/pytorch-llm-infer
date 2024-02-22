@@ -18,7 +18,7 @@ def make_norm(args: ModelArgs) -> nn.Module:
         return nn.LayerNorm(
             args.dim, eps=args.norm_eps, elementwise_affine=True, bias=True
         )
-    return RMSNorm(args.dim, eps=args.norm_eps)
+    return RMSNorm(args)
 
 
 class EncoderBlock(nn.Module):
@@ -132,6 +132,11 @@ class FeedForward(nn.Module):
             x1 = F.gelu(self.gate_proj(x), approximate="tanh")
             # [B, L, hD] --> [B, L, D]
             return self.down_proj(x1)
+        if self.llm_type in ["gemma"]:
+            x1 = F.gelu(self.gate_proj(x))
+            x2 = self.up_proj(x)
+            return self.down_proj(x1 * x2)
+        ## other llm type
         # [B, L, D] --> [B, L, hD]
         x1, x2 = F.silu(self.gate_proj(x)), self.up_proj(x)
         # [B, L, hD] --> [B, L, D]
@@ -139,16 +144,22 @@ class FeedForward(nn.Module):
 
 
 class RMSNorm(nn.Module):
-    def __init__(self, dim, eps=1e-5):
+    def __init__(self, args: ModelArgs):
         super().__init__()
-        self.dim, self.eps = dim, eps
+        self.llm_type = args.llm_type
+        self.dim, self.eps = args.dim, args.norm_eps
 
-        self.weight = nn.Parameter(torch.ones(dim))
+        self.weight = nn.Parameter(torch.ones(self.dim))
+
+    def _norm(self, x):
+        return x * torch.rsqrt(torch.mean(x**2, dim=-1, keepdim=True) + self.eps)
 
     def forward(self, x) -> torch.Tensor:
         # [B, L, D] --> [B, L, D]
-        x = x * torch.rsqrt(torch.mean(x**2, dim=-1, keepdim=True) + self.eps)
+        x = self._norm(x.float()).type_as(x)
         # [D] * [B, L, D] --> [B, L, D], broadcasting
+        if self.llm_type in ["gemma"]:
+            return x * (1 + self.weight)
         return self.weight * x
 
 

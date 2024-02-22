@@ -201,8 +201,8 @@ if __name__ == "__main__":
     from helper import get_device
 
     gen_config = GenerationConfig(
-        max_prompt_length=50,
-        max_length=70,
+        max_prompt_length=2048,
+        max_length=4096,
         do_sample=True,
         temperature=1.0,
         top_k=1,
@@ -211,7 +211,7 @@ if __name__ == "__main__":
         verbose=True,
     )
 
-    device = get_device("cpu")
+    device = get_device("auto")
     model_names = [
         "phi-1_5",
         "phi-2",
@@ -220,7 +220,7 @@ if __name__ == "__main__":
         "Qwen1.5-1.8B-Chat",
         "gemma-2b-it",
     ]
-    model_name = model_names[3]
+    model_name = model_names[-2]
     print("model name:", model_name)
     print("device:", device.type)
     model_dir = Path() / f"checkpoints/{model_name}"
@@ -230,8 +230,9 @@ if __name__ == "__main__":
         "Write a detailed analogy between mathematics and a lighthouse.\nAnswer: ",
         "Alice: I don't know why, I'm struggling to maintain focus while studying. Any suggestions?\nBob: ",
         "I don't know why, I'm struggling to maintain focus while studying. Any suggestions?",
+        "Please tell me a joke about Python.",
     ]
-    prompt = prompts[3]
+    prompt = prompts[-1]
     # output = pipeline.stream_generate(
     #     prompt, config=gen_config, device=device, flush_every=1
     # )
@@ -242,7 +243,7 @@ if __name__ == "__main__":
         prompt, history=history, config=gen_config, device=device
     )
     output, history = pipeline.chat(
-        "Great suggestions, thank you!",
+        "Great, thank you!",
         history=history,
         config=gen_config,
         device=device,
