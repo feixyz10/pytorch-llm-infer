@@ -286,43 +286,43 @@ def _default_fun(x, *args, **kwargs):
     return x
 
 
-def postprocess_responce_for_qwen_chat(response: str) -> str:
-    response = response.strip()
-    if response.startswith("<|im_start|>system"):
-        idx = response.find("<|im_end|>")
-        idx = 0 if idx == -1 else idx + 10
-        response = response[idx:].strip()
-    response = response.replace("<|im_start|>user", "\nuser:\n")
-    response = response.replace("<|im_end|>", "")
-    response = response.replace("<|im_start|>assistant", "\nassistant:\n")
-    response = response.replace("<|endoftext|>", "")
-    # response = response.replace("\n\n", "\n")
-    return response.lstrip()
+# def postprocess_responce_for_qwen_chat(response: str) -> str:
+#     response = response.strip()
+#     if response.startswith("<|im_start|>system"):
+#         idx = response.find("<|im_end|>")
+#         idx = 0 if idx == -1 else idx + 10
+#         response = response[idx:].strip()
+#     response = response.replace("<|im_start|>user", "\nuser:\n")
+#     response = response.replace("<|im_end|>", "")
+#     response = response.replace("<|im_start|>assistant", "\nassistant:\n")
+#     response = response.replace("<|endoftext|>", "")
+#     # response = response.replace("\n\n", "\n")
+#     return response.lstrip()
 
 
-def postprocess_responce_for_gemma_it(response: str) -> str:
-    response = response.replace("<|start_of_turn|>user", "\nuser:\n")
-    response = response.replace("<|end_of_turn|>", "")
-    response = response.replace("<|start_of_turn|>model", "\nmodel:\n")
-    response = response.replace("<|end_of_turn|>", "")
-    response = response.replace("<bos>", "")
-    response = response.replace("<eos>", "")
-    # response = response.replace("\n\n", "\n")
-    return response.lstrip()
+# def postprocess_responce_for_gemma_it(response: str) -> str:
+#     response = response.replace("<|start_of_turn|>user", "\nuser:\n")
+#     response = response.replace("<|end_of_turn|>", "")
+#     response = response.replace("<|start_of_turn|>model", "\nmodel:\n")
+#     response = response.replace("<|end_of_turn|>", "")
+#     response = response.replace("<bos>", "")
+#     response = response.replace("<eos>", "")
+#     # response = response.replace("\n\n", "\n")
+#     return response.lstrip()
 
 
-def postprocess_responce_for_tinyllama_chat(response: str) -> str:
-    response = response.strip()
-    if response.startswith("</s>"):
-        idx = response.find("</s>")
-        idx = 0 if idx == -1 else idx + 4
-        response = response[idx:].strip()
-    response = response.replace("<|assistant|>", "\nassistant:\n")
-    response = response.replace("<|user|>", "\nuser:\n")
-    response = response.replace("</s>", "")
-    response = response.replace("<s>", "")
-    # response = response.replace("\n\n", "\n")
-    return response.lstrip()
+# def postprocess_responce_for_tinyllama_chat(response: str) -> str:
+#     response = response.strip()
+#     if response.startswith("</s>"):
+#         idx = response.find("</s>")
+#         idx = 0 if idx == -1 else idx + 4
+#         response = response[idx:].strip()
+#     response = response.replace("<|assistant|>", "\nassistant:\n")
+#     response = response.replace("<|user|>", "\nuser:\n")
+#     response = response.replace("</s>", "")
+#     response = response.replace("<s>", "")
+#     # response = response.replace("\n\n", "\n")
+#     return response.lstrip()
 
 
 PROMPT_PREPROCESS_FUN_MAP = {
@@ -333,10 +333,10 @@ PROMPT_PREPROCESS_FUN_MAP = {
 }
 
 RESPONCE_POSTPROCESS_FUN_MAP = {
-    "TinyLlama-1.1B-Chat-v1.0": postprocess_responce_for_tinyllama_chat,
-    "Qwen1.5-0.5B-Chat": postprocess_responce_for_qwen_chat,
-    "Qwen1.5-1.8B-Chat": postprocess_responce_for_qwen_chat,
-    "gemma-2b-it": postprocess_responce_for_gemma_it,
+    # "TinyLlama-1.1B-Chat-v1.0": postprocess_responce_for_tinyllama_chat,
+    # "Qwen1.5-0.5B-Chat": postprocess_responce_for_qwen_chat,
+    # "Qwen1.5-1.8B-Chat": postprocess_responce_for_qwen_chat,
+    # "gemma-2b-it": postprocess_responce_for_gemma_it,
 }
 
 

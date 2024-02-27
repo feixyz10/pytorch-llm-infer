@@ -113,8 +113,10 @@ class Pipeline(nn.Module):
         input_token_ids = torch.tensor(input_token_ids, dtype=torch.int64).to(device)
 
         def construct_output(output_token_ids: List[int]):
-            out_all = self.tokenizer.decode([*input_token_ids_raw, *output_token_ids])
-            out = self.tokenizer.decode(output_token_ids)
+            out_all = self.tokenizer.decode(
+                [*input_token_ids_raw, *output_token_ids], skip_special_tokens=True
+            )
+            out = self.tokenizer.decode(output_token_ids, skip_special_tokens=True)
             return self._postprocess(out_all), self._postprocess(out)
 
         self.model = self.model.to(device).eval().reset()
@@ -220,7 +222,7 @@ if __name__ == "__main__":
         "Qwen1.5-1.8B-Chat",
         "gemma-2b-it",
     ]
-    model_name = model_names[-1]
+    model_name = model_names[3]
     print("model name:", model_name)
     print("device:", device.type)
     model_dir = Path() / f"checkpoints/{model_name}"
