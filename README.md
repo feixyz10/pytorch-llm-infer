@@ -43,7 +43,6 @@ Oh my own pytorch implementation (from scratch) of some famous large language mo
     - [ ] repetition_penalty
     - [ ] beam search
 - parallel sampling
-    - [ ] [speculative_decoding](https://github.com/jzhang38/TinyLlama/blob/main/speculative_decoding/instruct_hf_assisted_decoding.py)
     - [ ] [Jacobi decoding]()
     - [ ] [Look ahead decoding]()
 - [ ] quantization
