@@ -42,10 +42,11 @@ Oh my own pytorch implementation (from scratch) of some famous large language mo
     - [ ] top-p
     - [ ] repetition_penalty
     - [ ] beam search
-- quantization
+- parallel sampling
     - [ ] [speculative_decoding](https://github.com/jzhang38/TinyLlama/blob/main/speculative_decoding/instruct_hf_assisted_decoding.py)
     - [ ] [Jacobi decoding]()
     - [ ] [Look ahead decoding]()
+- [ ] quantization
 - [ ] context window extension 
 - [ ] continuous batching
 - support more models: 
