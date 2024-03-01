@@ -23,6 +23,8 @@ Oh my own pytorch implementation (from scratch) of some famous large language mo
 - [x] rotary position embeddings / partial rotory position embeddings --> ./model/rope.py
 - [x] multi-head / multi-query / group-query attention --> ./model/attention.py
 - [x] kv cache --> ./model/module.py
+- parallel sampling
+    - [x] [speculative_decoding](https://github.com/jzhang38/TinyLlama/blob/main/speculative_decoding/instruct_hf_assisted_decoding.py)
 
 ## Supported Models
 
@@ -35,19 +37,18 @@ Oh my own pytorch implementation (from scratch) of some famous large language mo
 
 ## TODO list
 
-- [ ] fancy sampling
+- fancy sampling
     - [ ] top-k
     - [ ] top-p
     - [ ] repetition_penalty
     - [ ] beam search
-- [ ] quantization
-- [ ] parallel sampling
+- quantization
     - [ ] [speculative_decoding](https://github.com/jzhang38/TinyLlama/blob/main/speculative_decoding/instruct_hf_assisted_decoding.py)
     - [ ] [Jacobi decoding]()
     - [ ] [Look ahead decoding]()
 - [ ] context window extension 
 - [ ] continuous batching
-- [ ] support more models: 
+- support more models: 
     - [ ] [OLMo](https://huggingface.co/allenai/OLMo-1B)
 - [ ] Streamer like huggingface
 
