@@ -16,6 +16,8 @@ from model.helper import (
     get_prompt_preprocess_fun,
     get_responce_postprocess_fun,
 )
+from model.samplers import SamplerBase
+from model.decode import generate_yield
 
 
 class GenerationConfig(BaseModel):
@@ -26,17 +28,25 @@ class GenerationConfig(BaseModel):
     top_k: int = 3
     top_p: float = 1.0
     repetition_penalty: float = 1.0
+    speculative_k: int = 5
     verbose: bool = True
 
 
 class Pipeline(nn.Module):
     def __init__(
-        self, model: CausalLM, tokenizer: AutoTokenizer, model_name: str = None
+        self,
+        model: CausalLM,
+        tokenizer: AutoTokenizer,
+        model_name: str = None,
+        draft_model: CausalLM = None,
+        draft_model_name: str = None,
     ):
         super().__init__()
         self.model: CausalLM = model
         self.tokenizer: AutoTokenizer = tokenizer
         self.model_name: str = model_name
+        self.draft_model: CausalLM = draft_model
+        self.draft_model_name: str = draft_model_name
 
     def chat(
         self,
@@ -121,19 +131,20 @@ class Pipeline(nn.Module):
             return self._postprocess(out_all), self._postprocess(out)
 
         self.model = self.model.to(device).eval().reset()
-        output_token_ids = []
-        next_token_id = self._generate_next_token(input_token_ids, config)
-        output_token_ids.append(next_token_id)
-        while True:
-            if next_token_id == self.tokenizer.eos_token_id:
-                break
-            if len(input_token_ids) + len(output_token_ids) > config.max_length:
-                break
-            token_id = torch.tensor([next_token_id], dtype=torch.int64).to(device)
-            next_token_id = self._generate_next_token(token_id, config)
-            output_token_ids.append(next_token_id)
-            yield construct_output(output_token_ids)
-        yield construct_output(output_token_ids)
+        if self.draft_model is not None:
+            self.draft_model = self.draft_model.to(device).eval().reset()
+        sampler = SamplerBase(config.temperature, config.top_k)
+        for out in generate_yield(
+            self.model,
+            input_token_ids,
+            sampler,
+            config.max_length,
+            eos_token_id=self.tokenizer.eos_token_id,
+            draft_model=self.draft_model,
+            speculative_k=config.speculative_k,
+            verbose=config.verbose,
+        ):
+            yield construct_output(out)
 
     @torch.inference_mode()
     def _generate_next_token(
@@ -146,29 +157,40 @@ class Pipeline(nn.Module):
     @staticmethod
     def from_pretrained(
         model_dir: Path,
+        draft_model_dir: Path = None,
         strict=True,
     ) -> "Pipeline":
         assert model_dir.is_dir()
-        model_name = model_dir.name
+        assert draft_model_dir is None or draft_model_dir.is_dir()
 
         tokenizer = AutoTokenizer.from_pretrained(
             str(model_dir), trust_remote_code=True
         )
-        model_args = get_model_args(model_name)
-        if model_args.n_vocab != len(tokenizer):
-            print(
-                f"WARNING: model_args.n_vocab ({model_args.n_vocab}) != len(tokenizer) "
-                f"({len(tokenizer)})"
-            )
 
-        model = CausalLM.from_pretrained(
-            model_dir,
-            model_args,
-            strict,
-            get_state_dict_convert_fun(model_name),
-        )
-        model.eval()
-        return Pipeline(model, tokenizer, model_name)
+        def _load_model(model_name):
+            if model_name is None:
+                return None
+            model_args = get_model_args(model_name)
+            if model_args.n_vocab != len(tokenizer):
+                print(
+                    f"WARNING: {model_name}: model_args.n_vocab ({model_args.n_vocab}) != len(tokenizer) "
+                    f"({len(tokenizer)})"
+                )
+            model = CausalLM.from_pretrained(
+                model_dir,
+                model_args,
+                strict,
+                get_state_dict_convert_fun(model_name),
+            )
+            model.eval()
+            return model
+
+        model_name = model_dir.name
+        draft_model_name = draft_model_dir.name if draft_model_dir is not None else None
+        model = _load_model(model_name)
+        draft_model = _load_model(draft_model_name)
+
+        return Pipeline(model, tokenizer, model_name, draft_model, draft_model_name)
 
     def _sample(self, logits: torch.Tensor, config: GenerationConfig) -> int:
         """Only support batch_size == 1
@@ -213,7 +235,7 @@ if __name__ == "__main__":
         verbose=True,
     )
 
-    device = get_device("auto")
+    device = get_device("cpu")
     model_names = [
         "phi-1_5",
         "phi-2",
@@ -226,7 +248,7 @@ if __name__ == "__main__":
     print("model name:", model_name)
     print("device:", device.type)
     model_dir = Path() / f"checkpoints/{model_name}"
-    pipeline = Pipeline.from_pretrained(model_dir)
+    pipeline = Pipeline.from_pretrained(model_dir, model_dir)
     prompts = [
         'def print_prime(n):\n    """\n    print all primes between 1 and n\n    """\n',
         "Instruct: Write a detailed analogy between mathematics and a lighthouse.\n\nOutput:",

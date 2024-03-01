@@ -29,31 +29,82 @@ def autoregressive_decode(
     curr_token: torch.Tensor,  # [B, 1], currently only support B == 1
     num_new_tokens: int,
     sampler: SamplerBase,
-) -> Tuple[torch.Tensor, torch.Tensor]:
+    eos_token_id: int = None,
+    return_probs: bool = False,
+) -> Tuple[torch.Tensor, torch.Tensor]:  # type: ignore
+
+    def get_return(ts, ps):
+        if return_probs:
+            return (
+                torch.cat(ts, dim=-1),
+                torch.cat(ps, dim=-2),
+            )
+        else:
+            return torch.cat(ts, dim=-1)
+
     new_tokens, new_probs = [], []
     for _ in range(num_new_tokens):
         logits = model(curr_token)
-        new_token, new_prob = sampler.sample_from_logits(logits[:, -1])
-        new_tokens.append(new_token)
-        new_probs.append(new_prob)
+        if return_probs:
+            new_token, new_prob = sampler.sample_from_logits(logits[:, -1])
+            new_tokens.append(new_token)
+            new_probs.append(new_prob)
+        else:
+            new_token = sampler.sample_index_from_logits(logits[:, -1])
+            new_tokens.append(new_token)
+        if eos_token_id is not None and new_token.item() == eos_token_id:
+            break
         curr_token = new_token
-    return (
-        torch.cat(new_tokens, dim=-1),
-        torch.cat(new_probs, dim=-2),
-    )
+    return get_return(new_tokens, new_probs)
 
 
 @torch.inference_mode()
-def speculative_decode(
+def autoregressive_decode_yield(
+    model: CausalLM,
+    curr_token: torch.Tensor,  # [B, 1], currently only support B == 1
+    num_new_tokens: int,
+    sampler: SamplerBase,
+    eos_token_id: int = None,
+    return_probs: bool = False,
+) -> Tuple[torch.Tensor, torch.Tensor]:  # type: ignore
+
+    def get_return(ts, ps):
+        if return_probs:
+            return (
+                torch.cat(ts, dim=-1),
+                torch.cat(ps, dim=-2),
+            )
+        else:
+            return torch.cat(ts, dim=-1)
+
+    new_tokens, new_probs = [], []
+    for _ in range(num_new_tokens):
+        logits = model(curr_token)
+        if return_probs:
+            new_token, new_prob = sampler.sample_from_logits(logits[:, -1])
+            new_tokens.append(new_token)
+            new_probs.append(new_prob)
+        else:
+            new_token = sampler.sample_index_from_logits(logits[:, -1])
+            new_tokens.append(new_token)
+        if eos_token_id is not None and new_token.item() == eos_token_id:
+            break
+        curr_token = new_token
+        yield get_return(new_tokens, new_probs)
+    yield get_return(new_tokens, new_probs)
+
+
+@torch.inference_mode()
+def speculative_decode_yield(
     model: CausalLM,
     curr_token: torch.Tensor,  # [B, 1] or [1], currently only support B == 1
     sampler: SamplerBase,
     draft_model: CausalLM,
     speculative_k: int = 5,
-) -> torch.Tensor:
+) -> torch.Tensor:  # type: ignore
     curr_token = curr_token.view(-1)
     tokens_draft, probs_draft = autoregressive_decode(
-        draft_model, curr_token, speculative_k, sampler
+        draft_model, curr_token, speculative_k, sampler, return_probs=True
     )
     tokens_to_verify = torch.cat([curr_token, tokens_draft], dim=-1)
     logits = model(tokens_to_verify)  # [B, K+1, n_vocab]
@@ -66,7 +117,7 @@ def speculative_decode(
     if reject_loc.numel() == 0:  # all draft tokens will be accepted
         last_token = sampler.sample_index_from_logits(probs[-1], keepdim=True)
         draft_model(tokens_draft[-1])
-        return torch.cat([tokens_draft, last_token], dim=-1)
+        yield torch.cat([tokens_draft, last_token], dim=-1)
     else:
         accept_n = reject_loc[0].item()
         p, q = probs[accept_n], probs_draft[accept_n]
@@ -77,16 +128,34 @@ def speculative_decode(
             draft_model.start_index - speculative_k + accept_n + 1
         )
         model.set_start_index(model.start_index - speculative_k + accept_n)
-        return torch.cat([tokens_draft[:accept_n], new_tokens], dim=-1)
+        yield torch.cat([tokens_draft[:accept_n], new_tokens], dim=-1)
 
 
-def generate(
+@torch.inference_mode()
+def speculative_decode(
+    model: CausalLM,
+    curr_token: torch.Tensor,  # [B, 1] or [1], currently only support B == 1
+    sampler: SamplerBase,
+    draft_model: CausalLM,
+    speculative_k: int = 5,
+) -> torch.Tensor:
+    for tokens in speculative_decode_yield(
+        model, curr_token, sampler, draft_model, speculative_k
+    ):
+        pass
+    return tokens
+
+
+@torch.inference_mode()
+def generate_yield(
     model: CausalLM,
     prompt: torch.Tensor,  # [B, L], currently only support B == 1
-    max_length: int,
     sampler: SamplerBase,
+    max_length: int,
+    eos_token_id: int,
     draft_model: CausalLM = None,
     speculative_k: int = 5,
+    verbose: bool = False,
 ):
     assert prompt.ndim <= 1 or (prompt.ndim == 2 and prompt.shape[0] == 1)
     L = prompt.shape[-1] if prompt.ndim >= 1 else 1
@@ -96,9 +165,19 @@ def generate(
     next_token = sampler.sample_index_from_logits(logits[:, -1])
     outputs.append(next_token.item())
     total_seq_len = L + len(outputs)
-    if do_speculative:
+    eos_reached = False
+    if not do_speculative:
+        if verbose:
+            print("normal decoding mode", flush=True)
+        for next_tokens in autoregressive_decode_yield(
+            model, next_token, max_length - total_seq_len, sampler, eos_token_id
+        ):
+            yield [*outputs, *[x.item() for x in next_tokens]]
+    else:
+        if verbose:
+            print("speculative decoding mode", flush=True)
         prefill(draft_model, prompt)
-        while total_seq_len < max_length - speculative_k:
+        while total_seq_len < max_length - speculative_k and not eos_reached:
             seq_len_left = max_length - total_seq_len
             next_tokens = speculative_decode(
                 model,
@@ -107,19 +186,44 @@ def generate(
                 draft_model,
                 min(speculative_k, seq_len_left - 1),
             )
-            outputs.extend([x.item() for x in next_tokens])
+            for x in [x.item() for x in next_tokens]:
+                outputs.append(x)
+                if x == eos_token_id:
+                    eos_reached = True
+                    break
             total_seq_len = L + len(outputs)
             next_token = next_tokens[-1]
-        next_tokens, _ = autoregressive_decode(
-            model, next_token, max_length - total_seq_len, sampler
-        )
-        outputs.extend([x.item() for x in next_tokens])
-    else:
-        next_tokens, _ = autoregressive_decode(
-            model, next_token, max_length - total_seq_len, sampler
-        )
-        outputs.extend([x.item() for x in next_tokens])
-    return outputs
+            yield outputs
+        if not eos_reached:
+            for next_tokens in autoregressive_decode_yield(
+                model, next_token, max_length - total_seq_len, sampler, eos_token_id
+            ):
+                yield [*outputs, *[x.item() for x in next_tokens]]
+
+
+@torch.inference_mode()
+def generate(
+    model: CausalLM,
+    prompt: torch.Tensor,  # [B, L], currently only support B == 1
+    sampler: SamplerBase,
+    max_length: int,
+    eos_token_id: int,
+    draft_model: CausalLM = None,
+    speculative_k: int = 5,
+    verbose: bool = False,
+):
+    for tokens in generate_yield(
+        model,
+        prompt,
+        sampler,
+        max_length,
+        eos_token_id,
+        draft_model,
+        speculative_k,
+        verbose,
+    ):
+        pass
+    return tokens
 
 
 if __name__ == "__main__":
@@ -159,7 +263,8 @@ if __name__ == "__main__":
     # prefill(model, torch.LongTensor([1, 2]))
     # prefill(draft_model, torch.LongTensor([1, 2]))
     # speculative_decode(model, torch.LongTensor([1]), sampler, draft_model, 3)
-    outputs1 = generate(model, torch.LongTensor([1, 2]), 10, sampler, draft_model, 3)
-    outputs2 = generate(model, torch.LongTensor([1, 2]), 10, sampler, None, 3)
+    prompt = torch.LongTensor([1, 2])
+    outputs1 = generate(model, prompt, sampler, 10, 38, draft_model, 3)
+    outputs2 = generate(model, prompt, sampler, 10, 38, None, 3)
     print(outputs1)
     print(outputs2)
