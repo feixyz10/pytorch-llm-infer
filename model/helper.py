@@ -5,7 +5,7 @@ from collections import OrderedDict
 import safetensors.torch
 from typing import Callable, List, Tuple
 
-from model.model_args import ModelArgs
+from model_args import ModelArgs
 
 
 def get_device(device="auto") -> torch.device:

@@ -11,7 +11,7 @@ sys.path.append(str(Path(__file__).parent))
 
 from model_args import ModelArgs
 from module import EncoderBlock, make_norm
-from helper import load_model_state_dict, _load_model_state_dict
+from helper import load_model_state_dict
 
 
 class CausalLM(nn.Module):
@@ -52,9 +52,12 @@ class CausalLM(nn.Module):
         self.start_index = 0
         return self
 
+    def set_start_index(self, start_index: int):
+        self.start_index = start_index
+
     def forward(self, tokens: torch.Tensor) -> torch.Tensor:
         assert tokens.ndim <= 2
-        if tokens.ndim == 1:
+        while tokens.ndim < 2:
             tokens = tokens.unsqueeze(0)
         _, L = tokens.shape
 
@@ -65,7 +68,7 @@ class CausalLM(nn.Module):
             h = layer(h, self.start_index)  # [B, L, D] --> [B, L, D]
         h = self.model["norm"](h)  # [B, L, D] --> [B, L, D]
 
-        logits = self.lm_head(h)
+        logits = self.lm_head(h)  # [B, L, D] --> [B, L, n_vocab]
 
         self.start_index += L
         return logits

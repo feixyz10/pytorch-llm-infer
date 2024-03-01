@@ -10,7 +10,7 @@ from typing import List, Tuple
 from model.causal_model import CausalLM
 
 from transformers import AutoTokenizer
-from helper import (
+from model.helper import (
     get_model_args,
     get_state_dict_convert_fun,
     get_prompt_preprocess_fun,
@@ -95,6 +95,7 @@ class Pipeline(nn.Module):
         print(out, flush=True)
         return out
 
+    @torch.inference_mode()
     def _generate(
         self,
         prompt: str,
@@ -121,27 +122,26 @@ class Pipeline(nn.Module):
 
         self.model = self.model.to(device).eval().reset()
         output_token_ids = []
-        with torch.inference_mode():
-            next_token_id = self._generate_next_token(input_token_ids, config)
+        next_token_id = self._generate_next_token(input_token_ids, config)
+        output_token_ids.append(next_token_id)
+        while True:
+            if next_token_id == self.tokenizer.eos_token_id:
+                break
+            if len(input_token_ids) + len(output_token_ids) > config.max_length:
+                break
+            token_id = torch.tensor([next_token_id], dtype=torch.int64).to(device)
+            next_token_id = self._generate_next_token(token_id, config)
             output_token_ids.append(next_token_id)
-            while True:
-                if next_token_id == self.tokenizer.eos_token_id:
-                    break
-                if len(input_token_ids) + len(output_token_ids) > config.max_length:
-                    break
-                token_id = torch.tensor([next_token_id], dtype=torch.int64).to(device)
-                next_token_id = self._generate_next_token(token_id, config)
-                output_token_ids.append(next_token_id)
-                yield construct_output(output_token_ids)
             yield construct_output(output_token_ids)
+        yield construct_output(output_token_ids)
 
+    @torch.inference_mode()
     def _generate_next_token(
         self, token_ids: torch.Tensor, config: GenerationConfig
     ) -> int:
-        with torch.inference_mode():
-            logits = self.model(token_ids)[:, -1, :]
-            next_token_id = self._sample(logits, config)
-            return next_token_id
+        logits = self.model(token_ids)[:, -1, :]
+        next_token_id = self._sample(logits, config)
+        return next_token_id
 
     @staticmethod
     def from_pretrained(
@@ -200,7 +200,7 @@ def get_clear_command():
 
 
 if __name__ == "__main__":
-    from helper import get_device
+    from model.helper import get_device
 
     gen_config = GenerationConfig(
         max_prompt_length=1024,

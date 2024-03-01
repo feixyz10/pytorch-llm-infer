@@ -16,7 +16,7 @@ class OlmoModelForCausalLM(CausalLM):
 
 if __name__ == "__main__":
 
-    from helper import (
+    from model.helper import (
         get_model_args,
         get_state_dict_convert_fun,
         print_model_state_dict,
