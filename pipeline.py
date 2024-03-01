@@ -167,9 +167,10 @@ class Pipeline(nn.Module):
             str(model_dir), trust_remote_code=True
         )
 
-        def _load_model(model_name):
-            if model_name is None:
-                return None
+        def _load_model(model_dir: Path):
+            if model_dir is None:
+                return None, None
+            model_name = model_dir.name
             model_args = get_model_args(model_name)
             if model_args.n_vocab != len(tokenizer):
                 print(
@@ -183,12 +184,10 @@ class Pipeline(nn.Module):
                 get_state_dict_convert_fun(model_name),
             )
             model.eval()
-            return model
+            return model, model_name
 
-        model_name = model_dir.name
-        draft_model_name = draft_model_dir.name if draft_model_dir is not None else None
-        model = _load_model(model_name)
-        draft_model = _load_model(draft_model_name)
+        model, model_name = _load_model(model_dir)
+        draft_model, draft_model_name = _load_model(draft_model_dir)
 
         return Pipeline(model, tokenizer, model_name, draft_model, draft_model_name)
 
@@ -235,7 +234,7 @@ if __name__ == "__main__":
         verbose=True,
     )
 
-    device = get_device("cpu")
+    device = get_device("auto")
     model_names = [
         "phi-1_5",
         "phi-2",
@@ -245,10 +244,16 @@ if __name__ == "__main__":
         "gemma-2b-it",
     ]
     model_name = model_names[3]
-    print("model name:", model_name)
+    draft_model_name = model_names[3] if 1 == 2 else None
+    print(f"model name: {model_name}, draft model name: {draft_model_name}")
+    mode = "normal decoding" if draft_model_name is None else "speculative decoding"
+    print(f"{mode}")
     print("device:", device.type)
-    model_dir = Path() / f"checkpoints/{model_name}"
-    pipeline = Pipeline.from_pretrained(model_dir, model_dir)
+    model_dir: Path = Path() / f"checkpoints/{model_name}"
+    draft_model_dir = (
+        model_dir.parent / draft_model_name if draft_model_name is not None else None
+    )
+    pipeline = Pipeline.from_pretrained(model_dir, draft_model_dir)
     prompts = [
         'def print_prime(n):\n    """\n    print all primes between 1 and n\n    """\n',
         "Instruct: Write a detailed analogy between mathematics and a lighthouse.\n\nOutput:",

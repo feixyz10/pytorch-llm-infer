@@ -9,15 +9,19 @@ from model_args import ModelArgs
 
 
 def get_device(device="auto") -> torch.device:
-    assert device in ["auto", "cpu", "cuda", "mps"]
     if device == "auto":
         if torch.cuda.is_available():
-            device = "cuda"
+            dc = torch.cuda.device_count()
+            device = f"cuda:{dc-1}"
         elif torch.backends.mps.is_available():
             device = "mps"
         else:
             device = "cpu"
-    return torch.device(device)
+        return torch.device(device)
+    try:
+        return torch.device(device)
+    except:
+        raise ValueError(f"Invalid device: {device}")
 
 
 def get_model_state_dict_filenames(model_dir: Path) -> List[Path]:
@@ -187,7 +191,7 @@ MODEL_ARGS_MAP = {
         norm_eps=1e-6,
         rope_theta=1000000.0,
         max_batch_size=1,
-        max_seq_len=32768,
+        max_seq_len=4096,  # 32768,
     ),
     "Qwen1.5-1.8B-Chat": ModelArgs(
         llm_type="qwen",
@@ -200,7 +204,7 @@ MODEL_ARGS_MAP = {
         norm_eps=1e-6,
         rope_theta=1000000.0,
         max_batch_size=1,
-        max_seq_len=32768,
+        max_seq_len=4096,  # 32768,
     ),
     "gemma-2b-it": ModelArgs(
         llm_type="gemma",
