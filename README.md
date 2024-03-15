@@ -20,11 +20,30 @@ Oh my own pytorch implementation (from scratch) of some famous large language mo
 
 ##  Features Already Added
 
-- [x] rotary position embeddings / partial rotory position embeddings --> ./model/rope.py
-- [x] multi-head / multi-query / group-query attention --> ./model/attention.py
-- [x] kv cache --> ./model/module.py
-- parallel sampling
+- KV caching
+    - [x] static cache
+    - [ ] paged cache
+- Sampling method
+    - [x] temperature
+    - [x] top_k
+    - [ ] top_p
+    - [ ] repetition_penalty
+    - [ ] beam search
+- Position Embedding
+    - [x] rotary position embeddings
+    - [x] partial rotory position embeddings
+- Attention Mechanism
+    - [x] multi-head
+    - [x] multi-query
+    - [x] group-query 
+- Decoding
     - [x] [speculative_decoding](https://github.com/jzhang38/TinyLlama/blob/main/speculative_decoding/instruct_hf_assisted_decoding.py)
+    - [ ] [Jacobi decoding]()
+    - [ ] [Look ahead decoding]()
+- [ ] Quantization
+- [ ] context window extension 
+- [ ] continuous batching
+- [ ] Streamer like huggingface transformers
 
 ## Supported Models
 
@@ -33,24 +52,7 @@ Oh my own pytorch implementation (from scratch) of some famous large language mo
 - [x] [qwen](https://huggingface.co/Qwen)
 - [x] [Gemma](https://huggingface.co/google/gemma-2b-it) *20230222*
 - [x] [llama2](https://huggingface.co/meta-llama)
-
-
-## TODO list
-
-- fancy sampling
-    - [ ] top-k
-    - [ ] top-p
-    - [ ] repetition_penalty
-    - [ ] beam search
-- parallel sampling
-    - [ ] [Jacobi decoding]()
-    - [ ] [Look ahead decoding]()
-- [ ] quantization
-- [ ] context window extension 
-- [ ] continuous batching
-- support more models: 
-    - [ ] [OLMo](https://huggingface.co/allenai/OLMo-1B)
-- [ ] Streamer like huggingface
+- [ ] [OLMo](https://huggingface.co/allenai/OLMo-1B)
 
 ## Coffee
 
