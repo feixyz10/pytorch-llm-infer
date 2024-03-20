@@ -43,7 +43,8 @@ Oh my own pytorch implementation (from scratch) of some famous large language mo
 - [ ] Quantization
 - [ ] context window extension 
 - [ ] continuous batching
-- [ ] Streamer like huggingface transformers
+- [ ] Streamer
+- [ ] torch.compile
 
 ## Supported Models
 
