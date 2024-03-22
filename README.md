@@ -38,13 +38,20 @@ Oh my own pytorch implementation (from scratch) of some famous large language mo
     - [x] group-query 
 - Decoding
     - [x] [speculative_decoding](https://github.com/jzhang38/TinyLlama/blob/main/speculative_decoding/instruct_hf_assisted_decoding.py)
-    - [ ] [Jacobi decoding]()
-    - [ ] [Look ahead decoding]()
+    - [ ] [Jacobi decoding](https://arxiv.org/abs/2305.10427)
+    - [ ] [Look ahead decoding](https://arxiv.org/abs/2402.02057)
+- context window extension 
+    - [ ] [Positional Interpolation](https://arxiv.org/abs/2306.15595)
+    - [ ] [NTK-Aware Scaled RoPE](https://www.reddit.com/r/LocalLLaMA/comments/14lz7j5/ntkaware_scaled_rope_allows_llama_models_to_have/)
+    - [ ] [ReRoPe](https://github.com/bojone/rerope)
+    - [ ] [SelfExtend](https://arxiv.org/pdf/2401.01325.pdf)
+    - [ ] [YARN](https://arxiv.org/pdf/2309.00071.pdf)
+    - [ ] [StreamingLLM](https://arxiv.org/abs/2309.17453)
+    - [ ] [Dynamic NTK](https://www.reddit.com/r/LocalLLaMA/comments/14mrgpr/dynamically_scaled_rope_further_increases/)
 - [ ] Quantization
-- [ ] context window extension 
 - [ ] continuous batching
 - [ ] Streamer
-- [ ] torch.compile
+- [ ] [torch.compile](https://pytorch.org/blog/accelerating-generative-ai-2/)
 
 ## Supported Models
 
